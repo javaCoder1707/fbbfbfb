@@ -1,3 +1,712 @@
-\fjjtyjyrjreh
+using System;
+using System.Data;
+using System.Drawing;
+using System.Windows.Forms;
+using MySql.Data.MySqlClient;
 
-f
+namespace AutoSalonApp
+{
+    public partial class MainForm : Form
+    {
+        private DatabaseHelper dbHelper;
+        private TabControl tabControl1;
+        private TabPage tabBrands;
+        private TabPage tabCars;
+        private TabPage tabEmployees;
+        private TabPage tabCustomers;
+        private TabPage tabSales;
+        private DataGridView dataGridViewBrands;
+        private DataGridView dataGridViewCars;
+        private DataGridView dataGridViewEmployees;
+        private DataGridView dataGridViewCustomers;
+        private DataGridView dataGridViewSales;
+        private TextBox txtBrandName;
+        private TextBox txtCountry;
+        private Button btnAddBrand;
+        private ComboBox cmbBrands;
+        private TextBox txtCarModel;
+        private TextBox txtColor;
+        private TextBox txtVIN;
+        private NumericUpDown numYear;
+        private NumericUpDown numPrice;
+        private Button btnAddCar;
+        private Button btnSearchCars;
+        private TextBox txtSearchCar;
+        private ComboBox cmbCar;
+        private ComboBox cmbCustomer;
+        private ComboBox cmbEmployee;
+        private DateTimePicker dtpSaleDate;
+        private NumericUpDown numSalePrice;
+        private Button btnAddSale;
+        private Button btnRefresh;
+        private Button btnTest;
+
+        public MainForm()
+        {
+            InitializeComponent();
+            try
+            {
+                dbHelper = new DatabaseHelper();
+                AddTestButton();
+                LoadComboBoxData();
+                RefreshAllData();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка инициализации: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void InitializeComponent()
+        {
+            this.SuspendLayout();
+            this.Text = "AutoSalon Management";
+            this.Size = new Size(1200, 750);
+            this.StartPosition = FormStartPosition.CenterScreen;
+            this.Font = new Font("Segoe UI", 9);
+
+            CreateTabControl();
+            CreateBrandsTab();
+            CreateCarsTab();
+            CreateEmployeesTab();
+            CreateCustomersTab();
+            CreateSalesTab();
+            CreateRefreshButton();
+
+            this.Controls.Add(tabControl1);
+            this.Controls.Add(btnRefresh);
+            this.ResumeLayout(false);
+        }
+
+        private void AddTestButton()
+        {
+            btnTest = new Button();
+            btnTest.Location = new Point(300, 620);
+            btnTest.Size = new Size(120, 30);
+            btnTest.Text = "Тест БД";
+            btnTest.BackColor = Color.LightBlue;
+            btnTest.Click += BtnTest_Click;
+            this.Controls.Add(btnTest);
+        }
+
+        private void BtnTest_Click(object sender, EventArgs e)
+        {
+            SimpleTest.TestConnectionAndTables(dbHelper);
+        }
+
+        private void CreateTabControl()
+        {
+            tabControl1 = new TabControl();
+            tabControl1.Location = new Point(15, 15);
+            tabControl1.Size = new Size(1150, 600);
+            tabControl1.Font = new Font("Segoe UI", 9);
+
+            tabBrands = new TabPage("Brands");
+            tabBrands.BackColor = SystemColors.Window;
+            
+            tabCars = new TabPage("Cars");
+            tabCars.BackColor = SystemColors.Window;
+            
+            tabEmployees = new TabPage("Employees");
+            tabEmployees.BackColor = SystemColors.Window;
+            
+            tabCustomers = new TabPage("Customers");
+            tabCustomers.BackColor = SystemColors.Window;
+            
+            tabSales = new TabPage("Sales");
+            tabSales.BackColor = SystemColors.Window;
+
+            tabControl1.Controls.Add(tabBrands);
+            tabControl1.Controls.Add(tabCars);
+            tabControl1.Controls.Add(tabEmployees);
+            tabControl1.Controls.Add(tabCustomers);
+            tabControl1.Controls.Add(tabSales);
+        }
+
+        private void CreateBrandsTab()
+        {
+            Panel inputPanel = new Panel();
+            inputPanel.Location = new Point(10, 10);
+            inputPanel.Size = new Size(1100, 60);
+            inputPanel.BorderStyle = BorderStyle.FixedSingle;
+
+            Label lblBrandName = new Label();
+            lblBrandName.Text = "Brand Name:";
+            lblBrandName.Location = new Point(10, 20);
+            lblBrandName.Size = new Size(80, 20);
+            lblBrandName.Font = new Font("Segoe UI", 9);
+
+            Label lblCountry = new Label();
+            lblCountry.Text = "Country:";
+            lblCountry.Location = new Point(220, 20);
+            lblCountry.Size = new Size(60, 20);
+            lblCountry.Font = new Font("Segoe UI", 9);
+
+            txtBrandName = new TextBox();
+            txtBrandName.Location = new Point(95, 17);
+            txtBrandName.Size = new Size(120, 23);
+            txtBrandName.Font = new Font("Segoe UI", 9);
+
+            txtCountry = new TextBox();
+            txtCountry.Location = new Point(285, 17);
+            txtCountry.Size = new Size(120, 23);
+            txtCountry.Font = new Font("Segoe UI", 9);
+
+            btnAddBrand = new Button();
+            btnAddBrand.Location = new Point(420, 15);
+            btnAddBrand.Size = new Size(100, 27);
+            btnAddBrand.Text = "Add Brand";
+            btnAddBrand.Font = new Font("Segoe UI", 9);
+            btnAddBrand.Click += BtnAddBrand_Click;
+
+            inputPanel.Controls.Add(lblBrandName);
+            inputPanel.Controls.Add(lblCountry);
+            inputPanel.Controls.Add(txtBrandName);
+            inputPanel.Controls.Add(txtCountry);
+            inputPanel.Controls.Add(btnAddBrand);
+
+            dataGridViewBrands = new DataGridView();
+            dataGridViewBrands.Location = new Point(10, 80);
+            dataGridViewBrands.Size = new Size(1100, 490);
+            dataGridViewBrands.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dataGridViewBrands.Font = new Font("Segoe UI", 9);
+            dataGridViewBrands.BackgroundColor = SystemColors.Window;
+
+            tabBrands.Controls.Add(inputPanel);
+            tabBrands.Controls.Add(dataGridViewBrands);
+        }
+
+        private void CreateCarsTab()
+        {
+            Panel inputPanel = new Panel();
+            inputPanel.Location = new Point(10, 10);
+            inputPanel.Size = new Size(1100, 80);
+            inputPanel.BorderStyle = BorderStyle.FixedSingle;
+
+            Label lblBrand = new Label();
+            lblBrand.Text = "Brand:";
+            lblBrand.Location = new Point(10, 15);
+            lblBrand.Size = new Size(45, 20);
+
+            Label lblModel = new Label();
+            lblModel.Text = "Model:";
+            lblModel.Location = new Point(10, 45);
+            lblModel.Size = new Size(45, 20);
+
+            Label lblYear = new Label();
+            lblYear.Text = "Year:";
+            lblYear.Location = new Point(180, 15);
+            lblYear.Size = new Size(35, 20);
+
+            Label lblColor = new Label();
+            lblColor.Text = "Color:";
+            lblColor.Location = new Point(180, 45);
+            lblColor.Size = new Size(40, 20);
+
+            Label lblPrice = new Label();
+            lblPrice.Text = "Price:";
+            lblPrice.Location = new Point(350, 15);
+            lblPrice.Size = new Size(40, 20);
+
+            Label lblVIN = new Label();
+            lblVIN.Text = "VIN:";
+            lblVIN.Location = new Point(350, 45);
+            lblVIN.Size = new Size(35, 20);
+
+            cmbBrands = new ComboBox();
+            cmbBrands.Location = new Point(60, 12);
+            cmbBrands.Size = new Size(110, 23);
+            cmbBrands.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbBrands.Font = new Font("Segoe UI", 9);
+
+            txtCarModel = new TextBox();
+            txtCarModel.Location = new Point(60, 42);
+            txtCarModel.Size = new Size(110, 23);
+            txtCarModel.Font = new Font("Segoe UI", 9);
+
+            numYear = new NumericUpDown();
+            numYear.Location = new Point(220, 12);
+            numYear.Size = new Size(60, 23);
+            numYear.Minimum = 2000;
+            numYear.Maximum = 2030;
+            numYear.Value = 2024;
+            numYear.Font = new Font("Segoe UI", 9);
+
+            txtColor = new TextBox();
+            txtColor.Location = new Point(220, 42);
+            txtColor.Size = new Size(110, 23);
+            txtColor.Font = new Font("Segoe UI", 9);
+
+            numPrice = new NumericUpDown();
+            numPrice.Location = new Point(395, 12);
+            numPrice.Size = new Size(90, 23);
+            numPrice.Minimum = 0;
+            numPrice.Maximum = 100000000;
+            numPrice.Value = 1000000;
+            numPrice.Font = new Font("Segoe UI", 9);
+
+            txtVIN = new TextBox();
+            txtVIN.Location = new Point(395, 42);
+            txtVIN.Size = new Size(120, 23);
+            txtVIN.Font = new Font("Segoe UI", 9);
+
+            btnAddCar = new Button();
+            btnAddCar.Location = new Point(530, 15);
+            btnAddCar.Size = new Size(100, 50);
+            btnAddCar.Text = "Add Car";
+            btnAddCar.Font = new Font("Segoe UI", 9);
+            btnAddCar.Click += BtnAddCar_Click;
+
+            Panel searchPanel = new Panel();
+            searchPanel.Location = new Point(650, 15);
+            searchPanel.Size = new Size(300, 50);
+
+            Label lblSearch = new Label();
+            lblSearch.Text = "Search:";
+            lblSearch.Location = new Point(5, 17);
+            lblSearch.Size = new Size(50, 20);
+
+            txtSearchCar = new TextBox();
+            txtSearchCar.Location = new Point(60, 14);
+            txtSearchCar.Size = new Size(150, 23);
+            txtSearchCar.Font = new Font("Segoe UI", 9);
+
+            btnSearchCars = new Button();
+            btnSearchCars.Location = new Point(220, 14);
+            btnSearchCars.Size = new Size(70, 25);
+            btnSearchCars.Text = "Find";
+            btnSearchCars.Font = new Font("Segoe UI", 9);
+            btnSearchCars.Click += BtnSearchCars_Click;
+
+            searchPanel.Controls.Add(lblSearch);
+            searchPanel.Controls.Add(txtSearchCar);
+            searchPanel.Controls.Add(btnSearchCars);
+
+            inputPanel.Controls.Add(lblBrand);
+            inputPanel.Controls.Add(lblModel);
+            inputPanel.Controls.Add(lblYear);
+            inputPanel.Controls.Add(lblColor);
+            inputPanel.Controls.Add(lblPrice);
+            inputPanel.Controls.Add(lblVIN);
+            inputPanel.Controls.Add(cmbBrands);
+            inputPanel.Controls.Add(txtCarModel);
+            inputPanel.Controls.Add(numYear);
+            inputPanel.Controls.Add(txtColor);
+            inputPanel.Controls.Add(numPrice);
+            inputPanel.Controls.Add(txtVIN);
+            inputPanel.Controls.Add(btnAddCar);
+            inputPanel.Controls.Add(searchPanel);
+
+            dataGridViewCars = new DataGridView();
+            dataGridViewCars.Location = new Point(10, 100);
+            dataGridViewCars.Size = new Size(1100, 470);
+            dataGridViewCars.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dataGridViewCars.Font = new Font("Segoe UI", 9);
+            dataGridViewCars.BackgroundColor = SystemColors.Window;
+
+            tabCars.Controls.Add(inputPanel);
+            tabCars.Controls.Add(dataGridViewCars);
+        }
+
+        private void CreateEmployeesTab()
+        {
+            dataGridViewEmployees = new DataGridView();
+            dataGridViewEmployees.Location = new Point(10, 10);
+            dataGridViewEmployees.Size = new Size(1100, 550);
+            dataGridViewEmployees.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dataGridViewEmployees.Font = new Font("Segoe UI", 9);
+            dataGridViewEmployees.BackgroundColor = SystemColors.Window;
+
+            tabEmployees.Controls.Add(dataGridViewEmployees);
+        }
+
+        private void CreateCustomersTab()
+        {
+            dataGridViewCustomers = new DataGridView();
+            dataGridViewCustomers.Location = new Point(10, 10);
+            dataGridViewCustomers.Size = new Size(1100, 550);
+            dataGridViewCustomers.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dataGridViewCustomers.Font = new Font("Segoe UI", 9);
+            dataGridViewCustomers.BackgroundColor = SystemColors.Window;
+
+            tabCustomers.Controls.Add(dataGridViewCustomers);
+        }
+
+        private void CreateSalesTab()
+        {
+            Panel inputPanel = new Panel();
+            inputPanel.Location = new Point(10, 10);
+            inputPanel.Size = new Size(1100, 70);
+            inputPanel.BorderStyle = BorderStyle.FixedSingle;
+
+            Label lblCar = new Label();
+            lblCar.Text = "Car:";
+            lblCar.Location = new Point(10, 15);
+            lblCar.Size = new Size(30, 20);
+
+            Label lblCustomer = new Label();
+            lblCustomer.Text = "Customer:";
+            lblCustomer.Location = new Point(10, 45);
+            lblCustomer.Size = new Size(60, 20);
+
+            Label lblEmployee = new Label();
+            lblEmployee.Text = "Employee:";
+            lblEmployee.Location = new Point(250, 15);
+            lblEmployee.Size = new Size(65, 20);
+
+            Label lblSaleDate = new Label();
+            lblSaleDate.Text = "Sale Date:";
+            lblSaleDate.Location = new Point(250, 45);
+            lblSaleDate.Size = new Size(65, 20);
+
+            Label lblSalePrice = new Label();
+            lblSalePrice.Text = "Sale Price:";
+            lblSalePrice.Location = new Point(490, 15);
+            lblSalePrice.Size = new Size(70, 20);
+
+            cmbCar = new ComboBox();
+            cmbCar.Location = new Point(45, 12);
+            cmbCar.Size = new Size(190, 23);
+            cmbCar.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbCar.Font = new Font("Segoe UI", 9);
+
+            cmbCustomer = new ComboBox();
+            cmbCustomer.Location = new Point(75, 42);
+            cmbCustomer.Size = new Size(160, 23);
+            cmbCustomer.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbCustomer.Font = new Font("Segoe UI", 9);
+
+            cmbEmployee = new ComboBox();
+            cmbEmployee.Location = new Point(320, 12);
+            cmbEmployee.Size = new Size(160, 23);
+            cmbEmployee.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbEmployee.Font = new Font("Segoe UI", 9);
+
+            dtpSaleDate = new DateTimePicker();
+            dtpSaleDate.Location = new Point(320, 42);
+            dtpSaleDate.Size = new Size(120, 23);
+            dtpSaleDate.Value = DateTime.Now;
+            dtpSaleDate.Font = new Font("Segoe UI", 9);
+
+            numSalePrice = new NumericUpDown();
+            numSalePrice.Location = new Point(565, 12);
+            numSalePrice.Size = new Size(100, 23);
+            numSalePrice.Minimum = 0;
+            numSalePrice.Maximum = 100000000;
+            numSalePrice.Value = 1000000;
+            numSalePrice.Font = new Font("Segoe UI", 9);
+
+            btnAddSale = new Button();
+            btnAddSale.Location = new Point(680, 15);
+            btnAddSale.Size = new Size(120, 40);
+            btnAddSale.Text = "Register Sale";
+            btnAddSale.Font = new Font("Segoe UI", 9);
+            btnAddSale.Click += BtnAddSale_Click;
+
+            inputPanel.Controls.Add(lblCar);
+            inputPanel.Controls.Add(lblCustomer);
+            inputPanel.Controls.Add(lblEmployee);
+            inputPanel.Controls.Add(lblSaleDate);
+            inputPanel.Controls.Add(lblSalePrice);
+            inputPanel.Controls.Add(cmbCar);
+            inputPanel.Controls.Add(cmbCustomer);
+            inputPanel.Controls.Add(cmbEmployee);
+            inputPanel.Controls.Add(dtpSaleDate);
+            inputPanel.Controls.Add(numSalePrice);
+            inputPanel.Controls.Add(btnAddSale);
+
+            dataGridViewSales = new DataGridView();
+            dataGridViewSales.Location = new Point(10, 90);
+            dataGridViewSales.Size = new Size(1100, 480);
+            dataGridViewSales.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dataGridViewSales.Font = new Font("Segoe UI", 9);
+            dataGridViewSales.BackgroundColor = SystemColors.Window;
+
+            tabSales.Controls.Add(inputPanel);
+            tabSales.Controls.Add(dataGridViewSales);
+        }
+
+        private void CreateRefreshButton()
+        {
+            btnRefresh = new Button();
+            btnRefresh.Location = new Point(15, 620);
+            btnRefresh.Size = new Size(120, 30);
+            btnRefresh.Text = "Refresh All";
+            btnRefresh.Font = new Font("Segoe UI", 9);
+            btnRefresh.Click += BtnRefresh_Click;
+        }
+
+        private void LoadComboBoxData()
+        {
+            try
+            {
+                DataTable brands = dbHelper.ExecuteQuery("SELECT BrandID, BrandName FROM Brands");
+                cmbBrands.DataSource = brands;
+                cmbBrands.DisplayMember = "BrandName";
+                cmbBrands.ValueMember = "BrandID";
+
+                DataTable cars = dbHelper.ExecuteQuery(@"
+                    SELECT CarID, 
+                    CONCAT(b.BrandName, ' ', c.Model) as CarInfo 
+                    FROM Cars c 
+                    JOIN Brands b ON c.BrandID = b.BrandID 
+                    WHERE c.InStock = TRUE");
+                cmbCar.DataSource = cars;
+                cmbCar.DisplayMember = "CarInfo";
+                cmbCar.ValueMember = "CarID";
+
+                DataTable customers = dbHelper.ExecuteQuery(@"
+                    SELECT CustomerID, 
+                    CONCAT(FirstName, ' ', LastName) as FullName 
+                    FROM Customers");
+                cmbCustomer.DataSource = customers;
+                cmbCustomer.DisplayMember = "FullName";
+                cmbCustomer.ValueMember = "CustomerID";
+
+                DataTable employees = dbHelper.ExecuteQuery(@"
+                    SELECT EmployeeID, 
+                    CONCAT(FirstName, ' ', LastName) as FullName 
+                    FROM Employees");
+                cmbEmployee.DataSource = employees;
+                cmbEmployee.DisplayMember = "FullName";
+                cmbEmployee.ValueMember = "EmployeeID";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error loading combo box data: " + ex.Message);
+            }
+        }
+
+        private void RefreshAllData()
+        {
+            try
+            {
+                LoadBrands();
+                LoadCars();
+                LoadEmployees();
+                LoadCustomers();
+                LoadSales();
+                LoadComboBoxData();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error refreshing data: " + ex.Message);
+            }
+        }
+
+        private void LoadBrands()
+        {
+            string query = "SELECT * FROM Brands";
+            DataTable dt = dbHelper.ExecuteQuery(query);
+            dataGridViewBrands.DataSource = dt;
+        }
+
+        private void LoadCars()
+        {
+            string query = @"
+                SELECT 
+                    c.CarID,
+                    b.BrandName,
+                    c.Model,
+                    c.Year,
+                    c.Color, 
+                    c.Price,
+                    c.VIN,
+                    CASE WHEN c.InStock THEN 'In Stock' ELSE 'Sold' END as Status
+                FROM Cars c 
+                JOIN Brands b ON c.BrandID = b.BrandID";
+                
+            DataTable dt = dbHelper.ExecuteQuery(query);
+            dataGridViewCars.DataSource = dt;
+        }
+
+        private void LoadEmployees()
+        {
+            string query = "SELECT * FROM Employees";
+            DataTable dt = dbHelper.ExecuteQuery(query);
+            dataGridViewEmployees.DataSource = dt;
+        }
+
+        private void LoadCustomers()
+        {
+            string query = "SELECT * FROM Customers";
+            DataTable dt = dbHelper.ExecuteQuery(query);
+            dataGridViewCustomers.DataSource = dt;
+        }
+
+        private void LoadSales()
+        {
+            string query = @"
+                SELECT 
+                    s.SaleID,
+                    b.BrandName,
+                    c.Model,
+                    CONCAT(cust.FirstName, ' ', cust.LastName) as Customer,
+                    CONCAT(emp.FirstName, ' ', emp.LastName) as Employee,
+                    s.SaleDate,
+                    s.SalePrice
+                FROM Sales s
+                JOIN Cars c ON s.CarID = c.CarID
+                JOIN Brands b ON c.BrandID = b.BrandID
+                JOIN Customers cust ON s.CustomerID = cust.CustomerID
+                JOIN Employees emp ON s.EmployeeID = emp.EmployeeID";
+                
+            DataTable dt = dbHelper.ExecuteQuery(query);
+            dataGridViewSales.DataSource = dt;
+        }
+
+        private void BtnAddBrand_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(txtBrandName.Text))
+                {
+                    MessageBox.Show("Please enter brand name!");
+                    return;
+                }
+
+                string query = "INSERT INTO Brands (BrandName, Country) VALUES (@BrandName, @Country)";
+                MySqlParameter[] parameters = {
+                    new MySqlParameter("@BrandName", txtBrandName.Text),
+                    new MySqlParameter("@Country", txtCountry.Text)
+                };
+                
+                dbHelper.ExecuteNonQuery(query, parameters);
+                LoadBrands();
+                LoadComboBoxData();
+                txtBrandName.Clear();
+                txtCountry.Clear();
+                MessageBox.Show("Brand added successfully!");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error: " + ex.Message);
+            }
+        }
+
+        private void BtnAddCar_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(txtCarModel.Text) || string.IsNullOrWhiteSpace(txtVIN.Text))
+                {
+                    MessageBox.Show("Please fill model and VIN!");
+                    return;
+                }
+
+                string query = @"INSERT INTO Cars (BrandID, Model, Year, Color, Price, VIN) 
+                               VALUES (@BrandID, @Model, @Year, @Color, @Price, @VIN)";
+                MySqlParameter[] parameters = {
+                    new MySqlParameter("@BrandID", cmbBrands.SelectedValue),
+                    new MySqlParameter("@Model", txtCarModel.Text),
+                    new MySqlParameter("@Year", (int)numYear.Value),
+                    new MySqlParameter("@Color", txtColor.Text),
+                    new MySqlParameter("@Price", numPrice.Value),
+                    new MySqlParameter("@VIN", txtVIN.Text)
+                };
+                
+                dbHelper.ExecuteNonQuery(query, parameters);
+                LoadCars();
+                LoadComboBoxData();
+                ClearCarFields();
+                MessageBox.Show("Car added successfully!");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error: " + ex.Message);
+            }
+        }
+
+        private void BtnAddSale_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (cmbCar.Items.Count == 0)
+                {
+                    MessageBox.Show("No available cars for sale!");
+                    return;
+                }
+
+                string query = @"INSERT INTO Sales (CarID, CustomerID, EmployeeID, SaleDate, SalePrice) 
+                               VALUES (@CarID, @CustomerID, @EmployeeID, @SaleDate, @SalePrice)";
+                MySqlParameter[] parameters = {
+                    new MySqlParameter("@CarID", cmbCar.SelectedValue),
+                    new MySqlParameter("@CustomerID", cmbCustomer.SelectedValue),
+                    new MySqlParameter("@EmployeeID", cmbEmployee.SelectedValue),
+                    new MySqlParameter("@SaleDate", dtpSaleDate.Value),
+                    new MySqlParameter("@SalePrice", numSalePrice.Value)
+                };
+                
+                dbHelper.ExecuteNonQuery(query, parameters);
+                
+                string updateCarQuery = "UPDATE Cars SET InStock = FALSE WHERE CarID = @CarID";
+                MySqlParameter[] updateParams = {
+                    new MySqlParameter("@CarID", cmbCar.SelectedValue)
+                };
+                dbHelper.ExecuteNonQuery(updateCarQuery, updateParams);
+                
+                LoadSales();
+                LoadCars();
+                LoadComboBoxData();
+                ClearSaleFields();
+                MessageBox.Show("Sale registered successfully!");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error: " + ex.Message);
+            }
+        }
+
+        private void BtnSearchCars_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                string searchTerm = txtSearchCar.Text;
+                string query = $@"
+                    SELECT 
+                        c.CarID,
+                        b.BrandName,
+                        c.Model,
+                        c.Year,
+                        c.Color, 
+                        c.Price,
+                        c.VIN,
+                        CASE WHEN c.InStock THEN 'In Stock' ELSE 'Sold' END as Status
+                    FROM Cars c 
+                    JOIN Brands b ON c.BrandID = b.BrandID
+                    WHERE 
+                        b.BrandName LIKE '%{searchTerm}%' OR 
+                        c.Model LIKE '%{searchTerm}%' OR 
+                        c.Color LIKE '%{searchTerm}%'";
+                
+                DataTable dt = dbHelper.ExecuteQuery(query);
+                dataGridViewCars.DataSource = dt;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Search error: " + ex.Message);
+            }
+        }
+
+        private void BtnRefresh_Click(object sender, EventArgs e)
+        {
+            RefreshAllData();
+            MessageBox.Show("Data refreshed!");
+        }
+
+        private void ClearCarFields()
+        {
+            txtCarModel.Clear();
+            txtColor.Clear();
+            txtVIN.Clear();
+            numPrice.Value = 1000000;
+            numYear.Value = 2024;
+        }
+
+        private void ClearSaleFields()
+        {
+            numSalePrice.Value = 1000000;
+            dtpSaleDate.Value = DateTime.Now;
+        }
+    }
+}
