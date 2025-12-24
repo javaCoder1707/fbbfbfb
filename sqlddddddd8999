@@ -1,0 +1,105 @@
+-- 1. Создаем базу данных
+CREATE DATABASE IF NOT EXISTS applicant_tracking 
+CHARACTER SET utf8mb4 
+COLLATE utf8mb4_unicode_ci;
+
+USE applicant_tracking;
+
+-- 2. Таблица пользователей
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    full_name VARCHAR(100),
+    email VARCHAR(100),
+    role VARCHAR(50) NOT NULL DEFAULT 'Консультант',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 3. Таблица абитуриентов
+CREATE TABLE IF NOT EXISTS applicants (
+    ApplicantID INT AUTO_INCREMENT PRIMARY KEY,
+    FirstName VARCHAR(50) NOT NULL,
+    LastName VARCHAR(50) NOT NULL,
+    Email VARCHAR(100),
+    Phone VARCHAR(20),
+    BirthDate DATE,
+    AverageScore DECIMAL(5,2),
+    EducationType VARCHAR(50),
+    Address TEXT,
+    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 4. Таблица ВУЗов
+CREATE TABLE IF NOT EXISTS universities (
+    UniversityID INT AUTO_INCREMENT PRIMARY KEY,
+    UniversityName VARCHAR(200) NOT NULL,
+    City VARCHAR(100),
+    Address TEXT,
+    Phone VARCHAR(20),
+    Email VARCHAR(100),
+    Website VARCHAR(200),
+    Description TEXT,
+    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 5. Таблица специальностей
+CREATE TABLE IF NOT EXISTS specialties (
+    SpecialtyID INT AUTO_INCREMENT PRIMARY KEY,
+    SpecialtyCode VARCHAR(20) NOT NULL,
+    SpecialtyName VARCHAR(200) NOT NULL,
+    RequiredScore DECIMAL(5,2),
+    Duration INT,
+    EducationForm VARCHAR(50),
+    TuitionFee DECIMAL(10,2),
+    Description TEXT,
+    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 6. Таблица заявок
+CREATE TABLE IF NOT EXISTS applications (
+    ApplicationID INT AUTO_INCREMENT PRIMARY KEY,
+    ApplicantID INT NOT NULL,
+    SpecialtyID INT NOT NULL,
+    UniversityID INT NOT NULL,
+    ApplicationDate DATE NOT NULL,
+    Status VARCHAR(50) DEFAULT 'Подана',
+    Comments TEXT,
+    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ApplicantID) REFERENCES applicants(ApplicantID) ON DELETE CASCADE,
+    FOREIGN KEY (SpecialtyID) REFERENCES specialties(SpecialtyID) ON DELETE CASCADE,
+    FOREIGN KEY (UniversityID) REFERENCES universities(UniversityID) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 7. Индексы для улучшения производительности
+CREATE INDEX idx_applicants_name ON applicants(LastName, FirstName);
+CREATE INDEX idx_applications_status ON applications(Status);
+CREATE INDEX idx_applications_date ON applications(ApplicationDate);
+CREATE INDEX idx_specialties_code ON specialties(SpecialtyCode);
+CREATE INDEX idx_universities_name ON universities(UniversityName);
+
+-- 8. Вставляем тестовых пользователей
+INSERT INTO users (username, password_hash, full_name, role) VALUES
+('admin', SHA2('admin123', 256), 'Главный администратор', 'Администратор'),
+('manager', SHA2('manager123', 256), 'Иванов Иван Иванович', 'Менеджер'),
+('consultant', SHA2('consultant123', 256), 'Петрова Мария Сергеевна', 'Консультант')
+ON DUPLICATE KEY UPDATE username = username;
+
+-- 9. Вставляем тестовые данные
+INSERT INTO universities (UniversityName, City, Website) VALUES
+('Московский государственный университет', 'Москва', 'www.msu.ru'),
+('Санкт-Петербургский государственный университет', 'Санкт-Петербург', 'www.spbu.ru'),
+('Новосибирский государственный университет', 'Новосибирск', 'www.nsu.ru')
+ON DUPLICATE KEY UPDATE UniversityName = UniversityName;
+
+INSERT INTO specialties (SpecialtyCode, SpecialtyName, RequiredScore) VALUES
+('01.03.02', 'Прикладная математика и информатика', 75.5),
+('09.03.01', 'Информатика и вычислительная техника', 72.0),
+('38.03.05', 'Бизнес-информатика', 68.5),
+('40.03.01', 'Юриспруденция', 70.0),
+('41.03.05', 'Международные отношения', 73.5)
+ON DUPLICATE KEY UPDATE SpecialtyCode = SpecialtyCode;
+
+-- Проверяем создание
+SELECT 'База данных успешно создана!' as message;
