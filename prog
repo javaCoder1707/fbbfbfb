@@ -1,0 +1,34 @@
+using System;
+using System.Windows.Forms;
+
+namespace AutoSalonApp
+{
+    static class Program
+    {
+        [STAThread]
+        static void Main()
+        {
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            
+            // Проверка подключения к БД
+            try
+            {
+                DatabaseHelper dbHelper = new DatabaseHelper();
+                if (!dbHelper.TestConnection())
+                {
+                    MessageBox.Show("Не удалось подключиться к базе данных.\nПроверьте соединение и настройки.", 
+                        "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+                
+                Application.Run(new LoginForm());
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Критическая ошибка: {ex.Message}", "Ошибка", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+    }
+}
