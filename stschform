@@ -1,0 +1,49 @@
+using System;
+using System.Drawing;
+using System.Windows.Forms;
+using MySql.Data.MySqlClient;
+
+namespace ApplicantTrackingSystem
+{
+    public class StatusChangeForm : Form
+    {
+        private int applicationId;
+        private DatabaseHelper dbHelper;
+        private ComboBox cmbStatus;
+        private TextBox txtComment;
+        private Button btnSave, btnCancel;
+
+        public StatusChangeForm(int id, string currentStatus, DatabaseHelper dbHelper)
+        {
+            this.applicationId = id;
+            this.dbHelper = dbHelper;
+            InitializeComponent();
+            
+            // Устанавливаем текущий статус
+            for (int i = 0; i < cmbStatus.Items.Count; i++)
+            {
+                if (cmbStatus.Items[i].ToString() == currentStatus)
+                {
+                    cmbStatus.SelectedIndex = i;
+                    break;
+                }
+            }
+            
+            this.Text = "Изменение статуса заявки";
+        }
+
+        private void InitializeComponent()
+        {
+            this.Size = new Size(400, 250);
+            this.StartPosition = FormStartPosition.CenterParent;
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+
+            int y = 20;
+            int labelWidth = 100;
+            int controlWidth = 200;
+
+            // Статус
+            Label lblStatus = new Label();
+            lblStatus.Text = "Новый статус:";
