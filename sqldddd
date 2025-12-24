@@ -1,0 +1,499 @@
+-- ===========================================
+-- СИСТЕМА УЧЕТА АБИТУРИЕНТОВ - СОЗДАНИЕ БАЗЫ ДАННЫХ
+-- ===========================================
+
+-- 1. УДАЛИТЬ СТАРУЮ БАЗУ ДАННЫХ (ЕСЛИ СУЩЕСТВУЕТ)
+DROP DATABASE IF EXISTS `applicant_tracking`;
+
+-- 2. СОЗДАТЬ БАЗУ ДАННЫХ
+CREATE DATABASE `applicant_tracking` 
+CHARACTER SET utf8mb4 
+COLLATE utf8mb4_general_ci;
+
+USE `applicant_tracking`;
+
+-- 3. ТАБЛИЦА ПОЛЬЗОВАТЕЛЕЙ СИСТЕМЫ
+CREATE TABLE `users` (
+    `id` INT PRIMARY KEY AUTO_INCREMENT,
+    `username` VARCHAR(50) UNIQUE NOT NULL,
+    `password` VARCHAR(255) NOT NULL,
+    `full_name` VARCHAR(100) NOT NULL,
+    `email` VARCHAR(100),
+    `role` ENUM('Администратор', 'Менеджер', 'Консультант') NOT NULL DEFAULT 'Консультант',
+    `is_active` BOOLEAN DEFAULT TRUE,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `last_login` TIMESTAMP NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 4. ТАБЛИЦА АБИТУРИЕНТОВ
+CREATE TABLE `applicants` (
+    `ApplicantID` INT PRIMARY KEY AUTO_INCREMENT,
+    `FirstName` VARCHAR(50) NOT NULL,
+    `LastName` VARCHAR(50) NOT NULL,
+    `Email` VARCHAR(100),
+    `Phone` VARCHAR(20) NOT NULL,
+    `BirthDate` DATE,
+    `AverageScore` DECIMAL(4,2) DEFAULT 0.00,
+    `EducationType` ENUM('Среднее', 'Среднее специальное', 'Неоконченное высшее', 'Высшее') DEFAULT 'Среднее',
+    `Address` TEXT,
+    `PassportData` VARCHAR(100),
+    `Notes` TEXT,
+    `CreatedAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `UpdatedAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 5. ТАБЛИЦА ВУЗОВ
+CREATE TABLE `universities` (
+    `UniversityID` INT PRIMARY KEY AUTO_INCREMENT,
+    `UniversityName` VARCHAR(200) NOT NULL,
+    `City` VARCHAR(100),
+    `Address` TEXT,
+    `Phone` VARCHAR(20),
+    `Email` VARCHAR(100),
+    `Website` VARCHAR(200),
+    `Description` TEXT,
+    `CreatedAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 6. ТАБЛИЦА СПЕЦИАЛЬНОСТЕЙ
+CREATE TABLE `specialties` (
+    `SpecialtyID` INT PRIMARY KEY AUTO_INCREMENT,
+    `SpecialtyCode` VARCHAR(20) NOT NULL,
+    `SpecialtyName` VARCHAR(200) NOT NULL,
+    `Description` TEXT,
+    `RequiredScore` DECIMAL(4,2) DEFAULT 0.00,
+    `Duration` INT COMMENT 'Продолжительность обучения в годах',
+    `EducationForm` ENUM('Очная', 'Заочная', 'Очно-заочная', 'Дистанционная') DEFAULT 'Очная',
+    `TuitionFee` DECIMAL(10,2) COMMENT 'Стоимость обучения в год',
+    `CreatedAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 7. ТАБЛИЦА ЗАЯВОК
+CREATE TABLE `applications` (
+    `ApplicationID` INT PRIMARY KEY AUTO_INCREMENT,
+    `ApplicantID` INT NOT NULL,
+    `SpecialtyID` INT NOT NULL,
+    `UniversityID` INT NOT NULL,
+    `ApplicationDate` DATE NOT NULL DEFAULT (CURRENT_DATE),
+    `Status` ENUM('Подана', 'Рассмотрение', 'Принята', 'Отклонена', 'Ожидание', 'Отозвана') DEFAULT 'Подана',
+    `Priority` INT DEFAULT 1 COMMENT 'Приоритет заявки (1-высший)',
+    `Comments` TEXT,
+    `DecisionDate` DATE,
+    `DecisionBy` VARCHAR(100),
+    `CreatedAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `UpdatedAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (`ApplicantID`) REFERENCES `applicants`(`ApplicantID`) ON DELETE CASCADE,
+    FOREIGN KEY (`SpecialtyID`) REFERENCES `specialties`(`SpecialtyID`) ON DELETE RESTRICT,
+    FOREIGN KEY (`UniversityID`) REFERENCES `universities`(`UniversityID`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 8. ТАБЛИЦА ДОКУМЕНТОВ АБИТУРИЕНТОВ
+CREATE TABLE `applicant_documents` (
+    `DocumentID` INT PRIMARY KEY AUTO_INCREMENT,
+    `ApplicantID` INT NOT NULL,
+    `DocumentType` ENUM('Паспорт', 'Аттестат', 'Диплом', 'Справка', 'Фото', 'Медицинская справка', 'Другое') NOT NULL,
+    `DocumentNumber` VARCHAR(50),
+    `IssueDate` DATE,
+    `IssuedBy` VARCHAR(200),
+    `FileReference` VARCHAR(500) COMMENT 'Ссылка на файл документа',
+    `Notes` TEXT,
+    `UploadedAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`ApplicantID`) REFERENCES `applicants`(`ApplicantID`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 9. ТАБЛИЦА ЭКЗАМЕНОВ/ТЕСТОВ
+CREATE TABLE `exams` (
+    `ExamID` INT PRIMARY KEY AUTO_INCREMENT,
+    `ApplicantID` INT NOT NULL,
+    `ExamType` VARCHAR(100) NOT NULL COMMENT 'ЕГЭ, Вступительный экзамен и т.д.',
+    `Subject` VARCHAR(100) NOT NULL,
+    `Score` INT NOT NULL,
+    `ExamDate` DATE,
+    `MaxScore` INT DEFAULT 100,
+    `Notes` TEXT,
+    `CreatedAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`ApplicantID`) REFERENCES `applicants`(`ApplicantID`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 10. ТАБЛИЦА ИСТОРИИ ЛОГИНОВ
+CREATE TABLE `login_history` (
+    `id` INT PRIMARY KEY AUTO_INCREMENT,
+    `user_id` INT NOT NULL,
+    `login_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `ip_address` VARCHAR(45),
+    `user_agent` TEXT,
+    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ===========================================
+-- ЗАПОЛНЕНИЕ ТЕСТОВЫМИ ДАННЫМИ
+-- ===========================================
+
+-- 1. ДОБАВЛЕНИЕ ПОЛЬЗОВАТЕЛЕЙ (пароль: admin123)
+-- Пароль admin123 в SHA-256: 240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9
+INSERT INTO `users` (`username`, `password`, `full_name`, `email`, `role`, `is_active`) VALUES
+('admin', '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', 'Администратор Системы', 'admin@university.ru', 'Администратор', 1),
+('manager', '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', 'Менеджер Приемной Комиссии', 'manager@university.ru', 'Менеджер', 1),
+('consultant', '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', 'Консультант Приемной', 'consultant@university.ru', 'Консультант', 1);
+
+-- 2. ДОБАВЛЕНИЕ ВУЗОВ
+INSERT INTO `universities` (`UniversityName`, `City`, `Website`) VALUES
+('Московский государственный университет', 'Москва', 'https://www.msu.ru'),
+('Санкт-Петербургский государственный университет', 'Санкт-Петербург', 'https://spbu.ru'),
+('Новосибирский государственный университет', 'Новосибирск', 'https://www.nsu.ru'),
+('Казанский федеральный университет', 'Казань', 'https://kpfu.ru'),
+('Уральский федеральный университет', 'Екатеринбург', 'https://urfu.ru'),
+('Московский физико-технический институт', 'Москва', 'https://mipt.ru'),
+('Высшая школа экономики', 'Москва', 'https://www.hse.ru'),
+('Московский инженерно-физический институт', 'Москва', 'https://mephi.ru');
+
+-- 3. ДОБАВЛЕНИЕ СПЕЦИАЛЬНОСТЕЙ
+INSERT INTO `specialties` (`SpecialtyCode`, `SpecialtyName`, `Description`, `RequiredScore`, `Duration`, `EducationForm`, `TuitionFee`) VALUES
+('01.03.02', 'Прикладная математика и информатика', 'Подготовка специалистов в области математики и компьютерных наук', 75.00, 4, 'Очная', 250000.00),
+('09.03.01', 'Информатика и вычислительная техника', 'Программирование, компьютерные сети, базы данных', 72.00, 4, 'Очная', 240000.00),
+('09.03.04', 'Программная инженерия', 'Разработка программного обеспечения', 78.00, 4, 'Очная', 260000.00),
+('38.03.01', 'Экономика', 'Экономическая теория, финансы, менеджмент', 70.00, 4, 'Очная', 220000.00),
+('38.03.02', 'Менеджмент', 'Управление организациями, маркетинг, HR', 68.00, 4, 'Очная', 230000.00),
+('40.03.01', 'Юриспруденция', 'Гражданское, уголовное, административное право', 76.00, 4, 'Очная', 280000.00),
+('37.03.01', 'Психология', 'Общая психология, клиническая психология', 71.00, 4, 'Очная', 210000.00),
+('45.03.01', 'Филология', 'Русский язык и литература, иностранные языки', 65.00, 4, 'Очная', 190000.00),
+('54.03.01', 'Дизайн', 'Графический дизайн, веб-дизайн', 69.00, 4, 'Очная', 270000.00),
+('21.05.04', 'Горное дело', 'Добыча полезных ископаемых', 67.00, 5, 'Очная', 200000.00);
+
+-- 4. ДОБАВЛЕНИЕ АБИТУРИЕНТОВ
+INSERT INTO `applicants` (`FirstName`, `LastName`, `Email`, `Phone`, `BirthDate`, `AverageScore`, `EducationType`, `Address`) VALUES
+('Иван', 'Иванов', 'ivanov@mail.ru', '+79161234567', '2000-05-15', 85.50, 'Среднее', 'ул. Ленина, д. 10, кв. 5, Москва'),
+('Мария', 'Петрова', 'petrova@mail.ru', '+79162345678', '2001-03-22', 92.30, 'Среднее', 'пр. Победы, д. 25, кв. 12, Санкт-Петербург'),
+('Алексей', 'Сидоров', 'sidorov@mail.ru', '+79163456789', '1999-11-30', 78.90, 'Среднее специальное', 'ул. Мира, д. 3, кв. 7, Екатеринбург'),
+('Екатерина', 'Смирнова', 'smirnova@mail.ru', '+79164567890', '2002-02-14', 95.00, 'Среднее', 'ул. Гагарина, д. 15, кв. 3, Новосибирск'),
+('Дмитрий', 'Кузнецов', 'kuznetsov@mail.ru', '+79165678901', '2000-09-05', 81.20, 'Среднее', 'ул. Советская, д. 8, кв. 9, Казань'),
+('Ольга', 'Попова', 'popova@mail.ru', '+79166789012', '2001-07-18', 88.70, 'Среднее', 'ул. Кирова, д. 45, кв. 13, Нижний Новгород'),
+('Сергей', 'Васильев', 'vasiliev@mail.ru', '+79167890123', '1999-12-03', 76.40, 'Среднее специальное', 'пр. Ленина, д. 78, кв. 21, Самара'),
+('Анна', 'Морозова', 'morozova@mail.ru', '+79168901234', '2000-06-25', 91.80, 'Среднее', 'ул. Пушкина, д. 34, кв. 8, Челябинск'),
+('Андрей', 'Волков', 'volkov@mail.ru', '+79169012345', '2001-08-14', 79.50, 'Среднее', 'ул. Чехова, д. 12, кв. 15, Омск'),
+('Елена', 'Лебедева', 'lebedeva@mail.ru', '+79160123456', '2000-01-30', 87.30, 'Среднее', 'ул. Горького, д. 56, кв. 4, Ростов-на-Дону');
+
+-- 5. ДОБАВЛЕНИЕ ЗАЯВОК
+INSERT INTO `applications` (`ApplicantID`, `SpecialtyID`, `UniversityID`, `ApplicationDate`, `Status`, `Priority`) VALUES
+(1, 1, 1, '2024-06-01', 'Принята', 1),
+(1, 2, 2, '2024-06-02', 'Рассмотрение', 2),
+(2, 3, 1, '2024-06-03', 'Принята', 1),
+(2, 4, 3, '2024-06-04', 'Подана', 2),
+(3, 5, 4, '2024-06-05', 'Рассмотрение', 1),
+(4, 1, 1, '2024-06-06', 'Принята', 1),
+(4, 2, 2, '2024-06-07', 'Ожидание', 2),
+(5, 6, 5, '2024-06-08', 'Подана', 1),
+(6, 7, 6, '2024-06-09', 'Отклонена', 1),
+(7, 8, 7, '2024-06-10', 'Рассмотрение', 1),
+(8, 9, 8, '2024-06-11', 'Принята', 1),
+(9, 10, 1, '2024-06-12', 'Подана', 1),
+(10, 1, 2, '2024-06-13', 'Рассмотрение', 1);
+
+-- 6. ДОБАВЛЕНИЕ ЭКЗАМЕНОВ
+INSERT INTO `exams` (`ApplicantID`, `ExamType`, `Subject`, `Score`, `ExamDate`) VALUES
+(1, 'ЕГЭ', 'Математика', 92, '2024-05-20'),
+(1, 'ЕГЭ', 'Русский язык', 88, '2024-05-21'),
+(1, 'ЕГЭ', 'Информатика', 95, '2024-05-22'),
+(2, 'ЕГЭ', 'Математика', 96, '2024-05-20'),
+(2, 'ЕГЭ', 'Русский язык', 94, '2024-05-21'),
+(2, 'ЕГЭ', 'Физика', 89, '2024-05-23'),
+(3, 'ЕГЭ', 'Математика', 78, '2024-05-20'),
+(3, 'ЕГЭ', 'Русский язык', 82, '2024-05-21'),
+(3, 'ЕГЭ', 'Обществознание', 75, '2024-05-24'),
+(4, 'ЕГЭ', 'Математика', 98, '2024-05-20'),
+(4, 'ЕГЭ', 'Русский язык', 96, '2024-05-21'),
+(4, 'ЕГЭ', 'Информатика', 97, '2024-05-22');
+
+-- ===========================================
+-- СОЗДАНИЕ ИНДЕКСОВ ДЛЯ УСКОРЕНИЯ РАБОТЫ
+-- ===========================================
+
+CREATE INDEX idx_users_username ON `users`(`username`);
+CREATE INDEX idx_users_role ON `users`(`role`);
+CREATE INDEX idx_applicants_name ON `applicants`(`LastName`, `FirstName`);
+CREATE INDEX idx_applicants_email ON `applicants`(`Email`);
+CREATE INDEX idx_applicants_score ON `applicants`(`AverageScore`);
+CREATE INDEX idx_universities_name ON `universities`(`UniversityName`);
+CREATE INDEX idx_universities_city ON `universities`(`City`);
+CREATE INDEX idx_specialties_code ON `specialties`(`SpecialtyCode`);
+CREATE INDEX idx_specialties_name ON `specialties`(`SpecialtyName`);
+CREATE INDEX idx_applications_status ON `applications`(`Status`);
+CREATE INDEX idx_applications_date ON `applications`(`ApplicationDate`);
+CREATE INDEX idx_applications_applicant ON `applications`(`ApplicantID`);
+CREATE INDEX idx_applications_specialty ON `applications`(`SpecialtyID`);
+CREATE INDEX idx_applications_university ON `applications`(`UniversityID`);
+CREATE INDEX idx_exams_applicant ON `exams`(`ApplicantID`);
+CREATE INDEX idx_exams_subject ON `exams`(`Subject`);
+CREATE INDEX idx_documents_applicant ON `applicant_documents`(`ApplicantID`);
+CREATE INDEX idx_documents_type ON `applicant_documents`(`DocumentType`);
+
+-- ===========================================
+-- СОЗДАНИЕ ПРЕДСТАВЛЕНИЙ (VIEWS)
+-- ===========================================
+
+-- Представление для заявок со всей информацией
+CREATE OR REPLACE VIEW `applications_full_info` AS
+SELECT 
+    a.ApplicationID,
+    CONCAT(app.FirstName, ' ', app.LastName) AS ApplicantName,
+    app.AverageScore AS ApplicantScore,
+    s.SpecialtyCode,
+    s.SpecialtyName,
+    s.RequiredScore,
+    u.UniversityName,
+    u.City AS UniversityCity,
+    a.ApplicationDate,
+    a.Status,
+    a.Priority,
+    a.Comments,
+    CASE 
+        WHEN app.AverageScore >= s.RequiredScore THEN 'Соответствует'
+        ELSE 'Не соответствует'
+    END AS ScoreCompliance,
+    DATEDIFF(CURRENT_DATE, a.ApplicationDate) AS DaysSinceApplication
+FROM `applications` a
+JOIN `applicants` app ON a.ApplicantID = app.ApplicantID
+JOIN `specialties` s ON a.SpecialtyID = s.SpecialtyID
+JOIN `universities` u ON a.UniversityID = u.UniversityID
+ORDER BY a.ApplicationDate DESC;
+
+-- Представление для статистики по специальностям
+CREATE OR REPLACE VIEW `specialties_statistics` AS
+SELECT 
+    s.SpecialtyID,
+    s.SpecialtyCode,
+    s.SpecialtyName,
+    s.RequiredScore,
+    COUNT(a.ApplicationID) AS TotalApplications,
+    SUM(CASE WHEN a.Status = 'Принята' THEN 1 ELSE 0 END) AS Accepted,
+    SUM(CASE WHEN a.Status = 'Отклонена' THEN 1 ELSE 0 END) AS Rejected,
+    SUM(CASE WHEN a.Status IN ('Подана', 'Рассмотрение', 'Ожидание') THEN 1 ELSE 0 END) AS InProcess,
+    AVG(app.AverageScore) AS AvgApplicantScore,
+    MIN(app.AverageScore) AS MinApplicantScore,
+    MAX(app.AverageScore) AS MaxApplicantScore
+FROM `specialties` s
+LEFT JOIN `applications` a ON s.SpecialtyID = a.SpecialtyID
+LEFT JOIN `applicants` app ON a.ApplicantID = app.ApplicantID
+GROUP BY s.SpecialtyID, s.SpecialtyCode, s.SpecialtyName, s.RequiredScore
+ORDER BY TotalApplications DESC;
+
+-- Представление для топовых абитуриентов
+CREATE OR REPLACE VIEW `top_applicants` AS
+SELECT 
+    app.ApplicantID,
+    CONCAT(app.FirstName, ' ', app.LastName) AS FullName,
+    app.AverageScore,
+    app.EducationType,
+    COUNT(a.ApplicationID) AS ApplicationsCount,
+    SUM(CASE WHEN a.Status = 'Принята' THEN 1 ELSE 0 END) AS AcceptedApplications,
+    GROUP_CONCAT(DISTINCT s.SpecialtyName ORDER BY s.SpecialtyName SEPARATOR ', ') AS AppliedSpecialties
+FROM `applicants` app
+LEFT JOIN `applications` a ON app.ApplicantID = a.ApplicantID
+LEFT JOIN `specialties` s ON a.SpecialtyID = s.SpecialtyID
+GROUP BY app.ApplicantID, app.FirstName, app.LastName, app.AverageScore, app.EducationType
+ORDER BY app.AverageScore DESC;
+
+-- Представление для статистики по дням
+CREATE OR REPLACE VIEW `daily_statistics` AS
+SELECT 
+    DATE(ApplicationDate) AS Day,
+    COUNT(*) AS ApplicationsPerDay,
+    SUM(CASE WHEN Status = 'Принята' THEN 1 ELSE 0 END) AS AcceptedPerDay,
+    SUM(CASE WHEN Status = 'Отклонена' THEN 1 ELSE 0 END) AS RejectedPerDay,
+    AVG(app.AverageScore) AS AvgScorePerDay
+FROM `applications` a
+JOIN `applicants` app ON a.ApplicantID = app.ApplicantID
+GROUP BY DATE(ApplicationDate)
+ORDER BY Day DESC;
+
+-- ===========================================
+-- ХРАНИМЫЕ ПРОЦЕДУРЫ И ФУНКЦИИ
+-- ===========================================
+
+-- Процедура для автоматического расчета среднего балла абитуриента
+DELIMITER //
+CREATE PROCEDURE `calculate_applicant_score`(
+    IN applicant_id INT,
+    OUT average_score DECIMAL(4,2)
+)
+BEGIN
+    SELECT COALESCE(AVG(Score), 0) INTO average_score
+    FROM `exams`
+    WHERE ApplicantID = applicant_id;
+    
+    UPDATE `applicants`
+    SET AverageScore = average_score
+    WHERE ApplicantID = applicant_id;
+END //
+DELIMITER ;
+
+-- Функция для проверки соответствия баллов требованиям
+DELIMITER //
+CREATE FUNCTION `check_score_compliance`(
+    applicant_id INT,
+    specialty_id INT
+)
+RETURNS VARCHAR(50)
+DETERMINISTIC
+BEGIN
+    DECLARE applicant_score DECIMAL(4,2);
+    DECLARE required_score DECIMAL(4,2);
+    
+    SELECT AverageScore INTO applicant_score
+    FROM `applicants`
+    WHERE ApplicantID = applicant_id;
+    
+    SELECT RequiredScore INTO required_score
+    FROM `specialties`
+    WHERE SpecialtyID = specialty_id;
+    
+    IF applicant_score >= required_score THEN
+        RETURN 'Соответствует';
+    ELSE
+        RETURN 'Не соответствует';
+    END IF;
+END //
+DELIMITER ;
+
+-- Процедура для автоматического обновления статуса заявки
+DELIMITER //
+CREATE PROCEDURE `auto_update_application_status`(
+    IN application_id INT
+)
+BEGIN
+    DECLARE applicant_id INT;
+    DECLARE specialty_id INT;
+    DECLARE applicant_score DECIMAL(4,2);
+    DECLARE required_score DECIMAL(4,2);
+    DECLARE new_status VARCHAR(20);
+    
+    -- Получаем данные заявки
+    SELECT a.ApplicantID, a.SpecialtyID, app.AverageScore, s.RequiredScore
+    INTO applicant_id, specialty_id, applicant_score, required_score
+    FROM `applications` a
+    JOIN `applicants` app ON a.ApplicantID = app.ApplicantID
+    JOIN `specialties` s ON a.SpecialtyID = s.SpecialtyID
+    WHERE a.ApplicationID = application_id;
+    
+    -- Определяем новый статус на основе баллов
+    IF applicant_score >= required_score THEN
+        SET new_status = 'Рассмотрение';
+    ELSE
+        SET new_status = 'Отклонена';
+    END IF;
+    
+    -- Обновляем статус заявки
+    UPDATE `applications`
+    SET Status = new_status,
+        UpdatedAt = CURRENT_TIMESTAMP,
+        Comments = CONCAT(IFNULL(CONCAT(Comments, '\n'), ''), 
+                         '[Авто] Статус обновлен: ', new_status, 
+                         ' (балл: ', applicant_score, ', требование: ', required_score, ')')
+    WHERE ApplicationID = application_id;
+END //
+DELIMITER ;
+
+-- ===========================================
+-- ТРИГГЕРЫ
+-- ===========================================
+
+-- Триггер для обновления времени последнего изменения абитуриента
+DELIMITER //
+CREATE TRIGGER `before_applicants_update`
+BEFORE UPDATE ON `applicants`
+FOR EACH ROW
+BEGIN
+    SET NEW.UpdatedAt = CURRENT_TIMESTAMP;
+END //
+DELIMITER ;
+
+-- Триггер для проверки баллов при добавлении экзамена
+DELIMITER //
+CREATE TRIGGER `before_exams_insert`
+BEFORE INSERT ON `exams`
+FOR EACH ROW
+BEGIN
+    IF NEW.Score < 0 OR NEW.Score > NEW.MaxScore THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Балл должен быть между 0 и максимальным баллом';
+    END IF;
+END //
+DELIMITER ;
+
+-- Триггер для автоматического обновления среднего балла абитуриента
+DELIMITER //
+CREATE TRIGGER `after_exams_insert`
+AFTER INSERT ON `exams`
+FOR EACH ROW
+BEGIN
+    CALL calculate_applicant_score(NEW.ApplicantID, @avg_score);
+END //
+DELIMITER ;
+
+-- ===========================================
+-- СОЗДАНИЕ ПОЛЬЗОВАТЕЛЯ ДЛЯ ПРИЛОЖЕНИЯ
+-- ===========================================
+
+/*
+-- Раскомментируйте для создания пользователя базы данных
+CREATE USER IF NOT EXISTS 'applicant_app'@'localhost' IDENTIFIED BY 'AppPassword123!';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `applicant_tracking`.* TO 'applicant_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE `applicant_tracking`.`calculate_applicant_score` TO 'applicant_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE `applicant_tracking`.`auto_update_application_status` TO 'applicant_app'@'localhost';
+GRANT EXECUTE ON FUNCTION `applicant_tracking`.`check_score_compliance` TO 'applicant_app'@'localhost';
+FLUSH PRIVILEGES;
+*/
+
+-- ===========================================
+-- ПРОВЕРКА ДАННЫХ
+-- ===========================================
+
+SELECT '=== ТАБЛИЦЫ В БАЗЕ ДАННЫХ ===' AS '';
+SHOW TABLES;
+
+SELECT '=== ПОЛЬЗОВАТЕЛИ ===' AS '';
+SELECT id, username, full_name, role, is_active FROM `users`;
+
+SELECT '=== КОЛИЧЕСТВО ЗАПИСЕЙ ===' AS '';
+SELECT 'Абитуриенты' AS 'Таблица', COUNT(*) AS 'Количество' FROM `applicants`
+UNION ALL
+SELECT 'ВУЗы', COUNT(*) FROM `universities`
+UNION ALL
+SELECT 'Специальности', COUNT(*) FROM `specialties`
+UNION ALL
+SELECT 'Заявки', COUNT(*) FROM `applications`
+UNION ALL
+SELECT 'Экзамены', COUNT(*) FROM `exams`;
+
+SELECT '=== СТАТИСТИКА ЗАЯВОК ===' AS '';
+SELECT 
+    Status AS 'Статус',
+    COUNT(*) AS 'Количество',
+    ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM `applications`), 1) AS 'Процент'
+FROM `applications`
+GROUP BY Status
+ORDER BY COUNT(*) DESC;
+
+SELECT '=== ТОП-5 АБИТУРИЕНТОВ ПО БАЛЛАМ ===' AS '';
+SELECT 
+    CONCAT(FirstName, ' ', LastName) AS 'Абитуриент',
+    AverageScore AS 'Средний балл',
+    EducationType AS 'Образование',
+    (SELECT COUNT(*) FROM `applications` WHERE ApplicantID = a.ApplicantID) AS 'Кол-во заявок'
+FROM `applicants` a
+ORDER BY AverageScore DESC
+LIMIT 5;
+
+SELECT '=== ПОПУЛЯРНОСТЬ СПЕЦИАЛЬНОСТЕЙ ===' AS '';
+SELECT 
+    SpecialtyName AS 'Специальность',
+    RequiredScore AS 'Проходной балл',
+    COUNT(a.ApplicationID) AS 'Кол-во заявок'
+FROM `specialties` s
+LEFT JOIN `applications` a ON s.SpecialtyID = a.SpecialtyID
+GROUP BY s.SpecialtyID, s.SpecialtyName, s.RequiredScore
+ORDER BY COUNT(a.ApplicationID) DESC;
+
+-- ===========================================
+-- КОНЕЦ СКРИПТА
+-- ===========================================
