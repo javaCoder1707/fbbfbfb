@@ -1,0 +1,14 @@
+USE applicant_tracking;
+
+-- Очищаем таблицу
+TRUNCATE TABLE users;
+
+-- Вставляем пользователей с правильными хэшами
+-- Хэш 'admin123' в Base64
+INSERT INTO users (username, password_hash, full_name, role, is_active) VALUES
+('admin', 'jGl25bVBBBW96Qi9Te4V37Fnqchz/Eu4qB9vKrRIqRg=', 'Главный администратор', 'Администратор', 1),
+('manager', 'fdOc5e8fXbq3q9HtYwYJWp8MjL9p/5oK3p7tGJhV9l0=', 'Иванов Иван Иванович', 'Менеджер', 1),
+('consultant', 'Rk8u4BjCxZnXvxWbT2jC6WmHq4ZQh8v8wLfMp9tV2E=', 'Петрова Мария Сергеевна', 'Консультант', 1);
+
+-- Проверка
+SELECT * FROM users;
