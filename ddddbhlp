@@ -1,0 +1,146 @@
+using System;
+using System.Data;
+using System.Security.Cryptography;
+using System.Text;
+using MySql.Data.MySqlClient;
+
+namespace ApplicantTrackingSystem
+{
+    public class DatabaseHelper : IDisposable
+    {
+        private MySqlConnection connection;
+        private string connectionString;
+        private bool disposed = false;
+
+        public DatabaseHelper()
+        {
+            // Строка подключения к базе данных
+            connectionString = "server=localhost;database=applicant_tracking;uid=root;pwd=12345;charset=utf8mb4;";
+        }
+
+        // Метод для вычисления SHA256 хэша
+        public static string ComputeSHA256Hash(string input)
+        {
+            using (SHA256 sha256 = SHA256.Create())
+            {
+                byte[] bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(input));
+                StringBuilder builder = new StringBuilder();
+                for (int i = 0; i < bytes.Length; i++)
+                {
+                    builder.Append(bytes[i].ToString("x2"));
+                }
+                return builder.ToString();
+            }
+        }
+
+        private MySqlConnection GetConnection()
+        {
+            if (connection == null || connection.State != ConnectionState.Open)
+            {
+                connection = new MySqlConnection(connectionString);
+                connection.Open();
+            }
+            return connection;
+        }
+
+        public DataTable ExecuteQuery(string query, params MySqlParameter[] parameters)
+        {
+            using (var conn = GetConnection())
+            {
+                using (MySqlCommand command = new MySqlCommand(query, conn))
+                {
+                    if (parameters != null)
+                    {
+                        command.Parameters.AddRange(parameters);
+                    }
+
+                    DataTable dataTable = new DataTable();
+                    using (MySqlDataAdapter adapter = new MySqlDataAdapter(command))
+                    {
+                        adapter.Fill(dataTable);
+                    }
+                    return dataTable;
+                }
+            }
+        }
+
+        public int ExecuteNonQuery(string query, params MySqlParameter[] parameters)
+        {
+            using (var conn = GetConnection())
+            {
+                using (MySqlCommand command = new MySqlCommand(query, conn))
+                {
+                    if (parameters != null)
+                    {
+                        command.Parameters.AddRange(parameters);
+                    }
+                    return command.ExecuteNonQuery();
+                }
+            }
+        }
+
+        public object ExecuteScalar(string query, params MySqlParameter[] parameters)
+        {
+            using (var conn = GetConnection())
+            {
+                using (MySqlCommand command = new MySqlCommand(query, conn))
+                {
+                    if (parameters != null)
+                    {
+                        command.Parameters.AddRange(parameters);
+                    }
+                    return command.ExecuteScalar();
+                }
+            }
+        }
+
+        public bool TestConnection()
+        {
+            try
+            {
+                using (var testConnection = new MySqlConnection(connectionString))
+                {
+                    testConnection.Open();
+                    return true;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // Реализация IDisposable
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposed)
+            {
+                if (disposing)
+                {
+                    // Освобождаем управляемые ресурсы
+                    if (connection != null)
+                    {
+                        if (connection.State == ConnectionState.Open)
+                        {
+                            connection.Close();
+                        }
+                        connection.Dispose();
+                        connection = null;
+                    }
+                }
+                disposed = true;
+            }
+        }
+
+        ~DatabaseHelper()
+        {
+            Dispose(false);
+        }
+    }
+}
