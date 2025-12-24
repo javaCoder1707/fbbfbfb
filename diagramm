@@ -1,0 +1,92 @@
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         ДИАГРАММА БАЗЫ ДАННЫХ "АВТОСАЛОН"                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+                              ┌──────────────┐
+                              │    users     │
+                              ├──────────────┤
+                              │ id (PK)      │
+                              │ username     │
+                              │ password     │
+                              │ full_name    │
+                              │ email        │
+                              │ role         │
+                              │ is_active    │
+                              │ created_at   │
+                              │ last_login   │
+                              └──────┬───────┘
+                                     │ 1:*
+                                     │
+┌──────────────┐               ┌─────▼───────┐
+│  login_history │◄────────────┤  user_id (FK)│
+├──────────────┤               └─────────────┘
+│ id (PK)      │
+│ user_id (FK) │
+│ login_time   │
+│ ip_address   │
+│ user_agent   │
+└──────────────┘
+
+
+┌──────────────┐
+│   brands     │
+├──────────────┤
+│ BrandID (PK) │
+│ BrandName    │◄────────┐
+│ Country      │         │
+│ Description  │         │ 1:*
+│ created_at   │         │
+└──────┬───────┘         │
+       │ 1:*             │
+       │                 │
+┌──────▼───────┐   ┌─────▼───────┐
+│    cars      │   │   sales     │
+├──────────────┤   ├──────────────┤
+│ CarID (PK)   │   │ SaleID (PK)  │
+│ BrandID (FK) ├───► CarID (FK)   │
+│ Model        │   │ CustomerID(FK)│
+│ Year         │   │ EmployeeID(FK)│
+│ Color        │   │ SaleDate     │
+│ Price        │   │ SalePrice    │
+│ VIN          │   │ PaymentMethod│
+│ InStock      │   │ Commission   │
+│ ArrivalDate  │   │ Notes        │
+│ Description  │   │ created_at   │
+│ Mileage      │   └──────┬───────┘
+│ EngineVolume │          │
+│ FuelType     │          │ *:1
+│ Transmission │          │
+│ created_at   │          │
+└──────────────┘          │
+                     ┌────▼──────┐
+                     │ customers │
+                     ├───────────┤
+                     │CustomerID(PK)◄───┐
+                     │FirstName   │     │
+                     │LastName    │     │ *:1
+                     │Email       │     │
+                     │Phone       │     │
+                     │Address     │     │
+                     │BirthDate   │     │
+                     │Passport    │     │
+                     │Notes       │     │
+                     │created_at  │     │
+                     └────────────┘     │
+                                         │
+                                 ┌───────▼──────┐
+                                 │  employees   │
+                                 ├──────────────┤
+                                 │EmployeeID(PK)│
+                                 │FirstName     │
+                                 │LastName      │
+                                 │Position      │
+                                 │Department    │
+                                 │Phone         │
+                                 │Email         │
+                                 │Address       │
+                                 │BirthDate     │
+                                 │HireDate      │
+                                 │Salary        │
+                                 │is_active     │
+                                 │created_at    │
+                                 └──────────────┘
