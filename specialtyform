@@ -1,0 +1,356 @@
+using System;
+using System.Data;
+using System.Drawing;
+using System.Windows.Forms;
+using MySql.Data.MySqlClient;
+
+namespace ApplicantTrackingSystem
+{
+    public class SpecialtyForm : Form
+    {
+        private int? specialtyId;
+        private DatabaseHelper dbHelper;
+        
+        private TextBox txtSpecialtyCode, txtSpecialtyName, txtDescription;
+        private NumericUpDown numRequiredScore, numDuration, numTuitionFee;
+        private ComboBox cmbEducationForm;
+        private Button btnSave, btnCancel, btnDelete;
+
+        public SpecialtyForm(int? id, DatabaseHelper dbHelper)
+        {
+            this.specialtyId = id;
+            this.dbHelper = dbHelper;
+            InitializeComponent();
+            
+            if (id.HasValue)
+            {
+                LoadSpecialtyData();
+                this.Text = "Редактирование специальности";
+            }
+            else
+            {
+                this.Text = "Новая специальность";
+            }
+        }
+
+        private void InitializeComponent()
+        {
+            this.Size = new Size(500, 500);
+            this.StartPosition = FormStartPosition.CenterParent;
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+            this.Font = new Font("Segoe UI", 9);
+
+            int y = 20;
+            int labelWidth = 140;
+            int controlWidth = 200;
+
+            // Код специальности
+            Label lblSpecialtyCode = new Label();
+            lblSpecialtyCode.Text = "Код специальности:";
+            lblSpecialtyCode.Location = new Point(30, y);
+            lblSpecialtyCode.Size = new Size(labelWidth, 25);
+            this.Controls.Add(lblSpecialtyCode);
+
+            txtSpecialtyCode = new TextBox();
+            txtSpecialtyCode.Location = new Point(180, y);
+            txtSpecialtyCode.Size = new Size(controlWidth, 23);
+            this.Controls.Add(txtSpecialtyCode);
+            y += 35;
+
+            // Название специальности
+            Label lblSpecialtyName = new Label();
+            lblSpecialtyName.Text = "Название:";
+            lblSpecialtyName.Location = new Point(30, y);
+            lblSpecialtyName.Size = new Size(labelWidth, 25);
+            this.Controls.Add(lblSpecialtyName);
+
+            txtSpecialtyName = new TextBox();
+            txtSpecialtyName.Location = new Point(180, y);
+            txtSpecialtyName.Size = new Size(controlWidth, 23);
+            this.Controls.Add(txtSpecialtyName);
+            y += 35;
+
+            // Проходной балл
+            Label lblRequiredScore = new Label();
+            lblRequiredScore.Text = "Проходной балл:";
+            lblRequiredScore.Location = new Point(30, y);
+            lblRequiredScore.Size = new Size(labelWidth, 25);
+            this.Controls.Add(lblRequiredScore);
+
+            numRequiredScore = new NumericUpDown();
+            numRequiredScore.Location = new Point(180, y);
+            numRequiredScore.Size = new Size(100, 23);
+            numRequiredScore.Minimum = 0;
+            numRequiredScore.Maximum = 100;
+            numRequiredScore.DecimalPlaces = 2;
+            numRequiredScore.Value = 65;
+            numRequiredScore.Font = new Font("Segoe UI", 9);
+            this.Controls.Add(numRequiredScore);
+            y += 35;
+
+            // Продолжительность обучения
+            Label lblDuration = new Label();
+            lblDuration.Text = "Срок обучения (лет):";
+            lblDuration.Location = new Point(30, y);
+            lblDuration.Size = new Size(labelWidth, 25);
+            this.Controls.Add(lblDuration);
+
+            numDuration = new NumericUpDown();
+            numDuration.Location = new Point(180, y);
+            numDuration.Size = new Size(80, 23);
+            numDuration.Minimum = 1;
+            numDuration.Maximum = 6;
+            numDuration.Value = 4;
+            numDuration.Font = new Font("Segoe UI", 9);
+            this.Controls.Add(numDuration);
+            y += 35;
+
+            // Форма обучения
+            Label lblEducationForm = new Label();
+            lblEducationForm.Text = "Форма обучения:";
+            lblEducationForm.Location = new Point(30, y);
+            lblEducationForm.Size = new Size(labelWidth, 25);
+            this.Controls.Add(lblEducationForm);
+
+            cmbEducationForm = new ComboBox();
+            cmbEducationForm.Location = new Point(180, y);
+            cmbEducationForm.Size = new Size(controlWidth, 23);
+            cmbEducationForm.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbEducationForm.Font = new Font("Segoe UI", 9);
+            cmbEducationForm.Items.AddRange(new string[] { "Очная", "Заочная", "Очно-заочная", "Дистанционная" });
+            cmbEducationForm.SelectedIndex = 0;
+            this.Controls.Add(cmbEducationForm);
+            y += 35;
+
+            // Стоимость обучения
+            Label lblTuitionFee = new Label();
+            lblTuitionFee.Text = "Стоимость в год (руб.):";
+            lblTuitionFee.Location = new Point(30, y);
+            lblTuitionFee.Size = new Size(labelWidth, 25);
+            this.Controls.Add(lblTuitionFee);
+
+            numTuitionFee = new NumericUpDown();
+            numTuitionFee.Location = new Point(180, y);
+            numTuitionFee.Size = new Size(controlWidth, 23);
+            numTuitionFee.Minimum = 0;
+            numTuitionFee.Maximum = 1000000;
+            numTuitionFee.Value = 250000;
+            numTuitionFee.DecimalPlaces = 2;
+            numTuitionFee.Font = new Font("Segoe UI", 9);
+            this.Controls.Add(numTuitionFee);
+            y += 35;
+
+            // Описание
+            Label lblDescription = new Label();
+            lblDescription.Text = "Описание:";
+            lblDescription.Location = new Point(30, y);
+            lblDescription.Size = new Size(labelWidth, 25);
+            this.Controls.Add(lblDescription);
+
+            txtDescription = new TextBox();
+            txtDescription.Location = new Point(180, y);
+            txtDescription.Size = new Size(controlWidth, 80);
+            txtDescription.Multiline = true;
+            txtDescription.ScrollBars = ScrollBars.Vertical;
+            txtDescription.Font = new Font("Segoe UI", 9);
+            this.Controls.Add(txtDescription);
+            y += 90;
+
+            // Кнопки
+            Panel buttonPanel = new Panel();
+            buttonPanel.Location = new Point(30, y);
+            buttonPanel.Size = new Size(430, 50);
+
+            btnSave = new Button();
+            btnSave.Text = "Сохранить";
+            btnSave.Location = new Point(50, 10);
+            btnSave.Size = new Size(100, 35);
+            btnSave.BackColor = Color.FromArgb(46, 204, 113);
+            btnSave.ForeColor = Color.White;
+            btnSave.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            btnSave.Click += BtnSave_Click;
+            buttonPanel.Controls.Add(btnSave);
+
+            btnCancel = new Button();
+            btnCancel.Text = "Отмена";
+            btnCancel.Location = new Point(165, 10);
+            btnCancel.Size = new Size(100, 35);
+            btnCancel.BackColor = Color.FromArgb(149, 165, 166);
+            btnCancel.ForeColor = Color.White;
+            btnCancel.Font = new Font("Segoe UI", 9);
+            btnCancel.Click += (s, e) => this.DialogResult = DialogResult.Cancel;
+            buttonPanel.Controls.Add(btnCancel);
+
+            if (specialtyId.HasValue)
+            {
+                btnDelete = new Button();
+                btnDelete.Text = "Удалить";
+                btnDelete.Location = new Point(280, 10);
+                btnDelete.Size = new Size(100, 35);
+                btnDelete.BackColor = Color.FromArgb(231, 76, 60);
+                btnDelete.ForeColor = Color.White;
+                btnDelete.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                btnDelete.Click += BtnDelete_Click;
+                buttonPanel.Controls.Add(btnDelete);
+            }
+
+            this.Controls.Add(buttonPanel);
+        }
+
+        private void LoadSpecialtyData()
+        {
+            try
+            {
+                string query = "SELECT * FROM specialties WHERE SpecialtyID = @SpecialtyID";
+                DataTable dt = dbHelper.ExecuteQuery(query, 
+                    new MySqlParameter("@SpecialtyID", specialtyId.Value));
+                
+                if (dt.Rows.Count > 0)
+                {
+                    DataRow row = dt.Rows[0];
+                    
+                    txtSpecialtyCode.Text = row["SpecialtyCode"].ToString();
+                    txtSpecialtyName.Text = row["SpecialtyName"].ToString();
+                    
+                    if (row["RequiredScore"] != DBNull.Value)
+                    {
+                        numRequiredScore.Value = Convert.ToDecimal(row["RequiredScore"]);
+                    }
+                    
+                    if (row["Duration"] != DBNull.Value)
+                    {
+                        numDuration.Value = Convert.ToInt32(row["Duration"]);
+                    }
+                    
+                    if (row["EducationForm"] != DBNull.Value)
+                    {
+                        string educationForm = row["EducationForm"].ToString();
+                        for (int i = 0; i < cmbEducationForm.Items.Count; i++)
+                        {
+                            if (cmbEducationForm.Items[i].ToString() == educationForm)
+                            {
+                                cmbEducationForm.SelectedIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (row["TuitionFee"] != DBNull.Value)
+                    {
+                        numTuitionFee.Value = Convert.ToDecimal(row["TuitionFee"]);
+                    }
+                    
+                    if (row["Description"] != DBNull.Value)
+                    {
+                        txtDescription.Text = row["Description"].ToString();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка загрузки данных специальности: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void BtnSave_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(txtSpecialtyCode.Text) || string.IsNullOrWhiteSpace(txtSpecialtyName.Text))
+            {
+                MessageBox.Show("Введите код и название специальности", "Ошибка");
+                return;
+            }
+
+            try
+            {
+                if (specialtyId.HasValue)
+                {
+                    // Обновление существующей специальности
+                    string query = @"
+                        UPDATE specialties 
+                        SET SpecialtyCode = @SpecialtyCode,
+                            SpecialtyName = @SpecialtyName,
+                            RequiredScore = @RequiredScore,
+                            Duration = @Duration,
+                            EducationForm = @EducationForm,
+                            TuitionFee = @TuitionFee,
+                            Description = @Description
+                        WHERE SpecialtyID = @SpecialtyID";
+                    
+                    MySqlParameter[] parameters = {
+                        new MySqlParameter("@SpecialtyCode", txtSpecialtyCode.Text),
+                        new MySqlParameter("@SpecialtyName", txtSpecialtyName.Text),
+                        new MySqlParameter("@RequiredScore", numRequiredScore.Value),
+                        new MySqlParameter("@Duration", (int)numDuration.Value),
+                        new MySqlParameter("@EducationForm", cmbEducationForm.Text),
+                        new MySqlParameter("@TuitionFee", numTuitionFee.Value),
+                        new MySqlParameter("@Description", txtDescription.Text),
+                        new MySqlParameter("@SpecialtyID", specialtyId.Value)
+                    };
+                    
+                    dbHelper.ExecuteNonQuery(query, parameters);
+                }
+                else
+                {
+                    // Добавление новой специальности
+                    string query = @"
+                        INSERT INTO specialties (SpecialtyCode, SpecialtyName, RequiredScore, Duration, EducationForm, TuitionFee, Description)
+                        VALUES (@SpecialtyCode, @SpecialtyName, @RequiredScore, @Duration, @EducationForm, @TuitionFee, @Description)";
+                    
+                    MySqlParameter[] parameters = {
+                        new MySqlParameter("@SpecialtyCode", txtSpecialtyCode.Text),
+                        new MySqlParameter("@SpecialtyName", txtSpecialtyName.Text),
+                        new MySqlParameter("@RequiredScore", numRequiredScore.Value),
+                        new MySqlParameter("@Duration", (int)numDuration.Value),
+                        new MySqlParameter("@EducationForm", cmbEducationForm.Text),
+                        new MySqlParameter("@TuitionFee", numTuitionFee.Value),
+                        new MySqlParameter("@Description", txtDescription.Text)
+                    };
+                    
+                    dbHelper.ExecuteNonQuery(query, parameters);
+                }
+                
+                this.DialogResult = DialogResult.OK;
+                this.Close();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка сохранения специальности: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void BtnDelete_Click(object sender, EventArgs e)
+        {
+            if (MessageBox.Show("Вы уверены, что хотите удалить эту специальность?", 
+                "Подтверждение удаления", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+            {
+                try
+                {
+                    // Проверяем, есть ли заявки на эту специальность
+                    string checkQuery = "SELECT COUNT(*) FROM applications WHERE SpecialtyID = @SpecialtyID";
+                    int applicationsCount = Convert.ToInt32(dbHelper.ExecuteScalar(checkQuery, 
+                        new MySqlParameter("@SpecialtyID", specialtyId.Value)));
+                    
+                    if (applicationsCount > 0)
+                    {
+                        MessageBox.Show("Невозможно удалить специальность, на которую есть заявки.\n" +
+                                      "Сначала удалите все связанные заявки.", 
+                                      "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+                    
+                    string query = "DELETE FROM specialties WHERE SpecialtyID = @SpecialtyID";
+                    dbHelper.ExecuteNonQuery(query, new MySqlParameter("@SpecialtyID", specialtyId.Value));
+                    
+                    this.DialogResult = DialogResult.OK;
+                    this.Close();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Ошибка удаления специальности: " + ex.Message, "Ошибка");
+                }
+            }
+        }
+    }
+}
