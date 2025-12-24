@@ -1,0 +1,66 @@
+static void Main()
+{
+    Application.EnableVisualStyles();
+    Application.SetCompatibleTextRenderingDefault(false);
+
+    // Проверка подключения к БД перед запуском
+    try
+    {
+        using (var dbHelper = new DatabaseHelper())
+        {
+            if (!dbHelper.TestConnection())
+            {
+                MessageBox.Show(
+                    "Не удалось подключиться к базе данных!\n\n" +
+                    "Убедитесь, что:\n" +
+                    "1. MySQL сервер запущен\n" +
+                    "2. База данных 'applicant_tracking' создана\n" +
+                    "3. Данные для подключения верны\n\n" +
+                    "Проверьте файл App.config",
+                    "Ошибка подключения",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+                return;
+            }
+        }
+
+        // Используем цикл для повторного входа при неудаче
+        bool loginSuccessful = false;
+        
+        while (!loginSuccessful)
+        {
+            using (LoginForm loginForm = new LoginForm())
+            {
+                // Показываем форму входа как диалоговое окно
+                DialogResult result = loginForm.ShowDialog();
+                
+                if (result == DialogResult.OK)
+                {
+                    // Успешный вход, запускаем главную форму
+                    loginSuccessful = true;
+                    Application.Run(new MainForm(
+                        loginForm.CurrentUsername,
+                        loginForm.CurrentRole,
+                        loginForm.CurrentFullName
+                    ));
+                }
+                else if (result == DialogResult.Cancel || result == DialogResult.Abort)
+                {
+                    // Выход из приложения
+                    return;
+                }
+                // Если результат не OK и не Cancel, цикл продолжается
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        MessageBox.Show(
+            $"Критическая ошибка при запуске:\n{ex.Message}",
+            "Ошибка",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Error
+        );
+    }
+}
