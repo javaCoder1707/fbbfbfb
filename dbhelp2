@@ -1,0 +1,104 @@
+using System;
+using System.Data;
+using MySql.Data.MySqlClient;
+using System.Security.Cryptography;
+using System.Text;
+
+namespace AutoSalonApp
+{
+    public class DatabaseHelper
+    {
+        private string connectionString;
+
+        public DatabaseHelper()
+        {
+            // Используем простую строку подключения
+            connectionString = "server=localhost;database=autosalon;uid=root;pwd=12345;charset=utf8mb4;";
+        }
+
+        // Метод для вычисления SHA256 хэша
+        public static string ComputeSHA256Hash(string input)
+        {
+            using (SHA256 sha256 = SHA256.Create())
+            {
+                byte[] bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(input));
+                StringBuilder builder = new StringBuilder();
+                for (int i = 0; i < bytes.Length; i++)
+                {
+                    builder.Append(bytes[i].ToString("x2"));
+                }
+                return builder.ToString();
+            }
+        }
+
+        public DataTable ExecuteQuery(string query, params MySqlParameter[] parameters)
+        {
+            using (MySqlConnection connection = new MySqlConnection(connectionString))
+            {
+                connection.Open();
+                using (MySqlCommand command = new MySqlCommand(query, connection))
+                {
+                    if (parameters != null)
+                    {
+                        command.Parameters.AddRange(parameters);
+                    }
+
+                    DataTable dataTable = new DataTable();
+                    using (MySqlDataAdapter adapter = new MySqlDataAdapter(command))
+                    {
+                        adapter.Fill(dataTable);
+                    }
+                    return dataTable;
+                }
+            }
+        }
+
+        public int ExecuteNonQuery(string query, params MySqlParameter[] parameters)
+        {
+            using (MySqlConnection connection = new MySqlConnection(connectionString))
+            {
+                connection.Open();
+                using (MySqlCommand command = new MySqlCommand(query, connection))
+                {
+                    if (parameters != null)
+                    {
+                        command.Parameters.AddRange(parameters);
+                    }
+                    return command.ExecuteNonQuery();
+                }
+            }
+        }
+
+        public object ExecuteScalar(string query, params MySqlParameter[] parameters)
+        {
+            using (MySqlConnection connection = new MySqlConnection(connectionString))
+            {
+                connection.Open();
+                using (MySqlCommand command = new MySqlCommand(query, connection))
+                {
+                    if (parameters != null)
+                    {
+                        command.Parameters.AddRange(parameters);
+                    }
+                    return command.ExecuteScalar();
+                }
+            }
+        }
+
+        public bool TestConnection()
+        {
+            try
+            {
+                using (MySqlConnection connection = new MySqlConnection(connectionString))
+                {
+                    connection.Open();
+                    return true;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+}

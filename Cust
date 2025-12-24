@@ -1,0 +1,334 @@
+using System;
+using System.Data;
+using System.Drawing;
+using System.Windows.Forms;
+using MySql.Data.MySqlClient;
+
+namespace AutoSalonApp
+{
+    public class CustomerForm : Form
+    {
+        private int? customerId;
+        private DatabaseHelper dbHelper;
+        
+        private TextBox txtFirstName;
+        private TextBox txtLastName;
+        private TextBox txtEmail;
+        private TextBox txtPhone;
+        private TextBox txtAddress;
+        private DateTimePicker dtpBirthDate;
+        private TextBox txtPassport;
+        
+        private Button btnSave;
+        private Button btnCancel;
+        private Button btnDelete;
+
+        public CustomerForm(int? id, DatabaseHelper dbHelper)
+        {
+            this.customerId = id;
+            this.dbHelper = dbHelper;
+            InitializeComponent();
+            
+            if (id.HasValue)
+            {
+                LoadCustomerData();
+                this.Text = "Редактирование покупателя";
+            }
+            else
+            {
+                this.Text = "Новый покупатель";
+            }
+        }
+
+        private void InitializeComponent()
+        {
+            this.Size = new Size(450, 450);
+            this.StartPosition = FormStartPosition.CenterParent;
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+
+            int y = 20;
+            int labelWidth = 120;
+            int controlWidth = 200;
+
+            // Имя
+            Label lblFirstName = new Label();
+            lblFirstName.Text = "Имя:";
+            lblFirstName.Location = new Point(30, y);
+            lblFirstName.Size = new Size(labelWidth, 25);
+            this.Controls.Add(lblFirstName);
+
+            txtFirstName = new TextBox();
+            txtFirstName.Location = new Point(160, y);
+            txtFirstName.Size = new Size(controlWidth, 23);
+            this.Controls.Add(txtFirstName);
+            y += 35;
+
+            // Фамилия
+            Label lblLastName = new Label();
+            lblLastName.Text = "Фамилия:";
+            lblLastName.Location = new Point(30, y);
+            lblLastName.Size = new Size(labelWidth, 25);
+            this.Controls.Add(lblLastName);
+
+            txtLastName = new TextBox();
+            txtLastName.Location = new Point(160, y);
+            txtLastName.Size = new Size(controlWidth, 23);
+            this.Controls.Add(txtLastName);
+            y += 35;
+
+            // Email
+            Label lblEmail = new Label();
+            lblEmail.Text = "Email:";
+            lblEmail.Location = new Point(30, y);
+            lblEmail.Size = new Size(labelWidth, 25);
+            this.Controls.Add(lblEmail);
+
+            txtEmail = new TextBox();
+            txtEmail.Location = new Point(160, y);
+            txtEmail.Size = new Size(controlWidth, 23);
+            this.Controls.Add(txtEmail);
+            y += 35;
+
+            // Телефон
+            Label lblPhone = new Label();
+            lblPhone.Text = "Телефон:";
+            lblPhone.Location = new Point(30, y);
+            lblPhone.Size = new Size(labelWidth, 25);
+            this.Controls.Add(lblPhone);
+
+            txtPhone = new TextBox();
+            txtPhone.Location = new Point(160, y);
+            txtPhone.Size = new Size(controlWidth, 23);
+            this.Controls.Add(txtPhone);
+            y += 35;
+
+            // Адрес
+            Label lblAddress = new Label();
+            lblAddress.Text = "Адрес:";
+            lblAddress.Location = new Point(30, y);
+            lblAddress.Size = new Size(labelWidth, 25);
+            this.Controls.Add(lblAddress);
+
+            txtAddress = new TextBox();
+            txtAddress.Location = new Point(160, y);
+            txtAddress.Size = new Size(controlWidth, 23);
+            this.Controls.Add(txtAddress);
+            y += 35;
+
+            // Дата рождения
+            Label lblBirthDate = new Label();
+            lblBirthDate.Text = "Дата рождения:";
+            lblBirthDate.Location = new Point(30, y);
+            lblBirthDate.Size = new Size(labelWidth, 25);
+            this.Controls.Add(lblBirthDate);
+
+            dtpBirthDate = new DateTimePicker();
+            dtpBirthDate.Location = new Point(160, y);
+            dtpBirthDate.Size = new Size(controlWidth, 23);
+            dtpBirthDate.Value = new DateTime(1990, 1, 1);
+            dtpBirthDate.Format = DateTimePickerFormat.Short;
+            this.Controls.Add(dtpBirthDate);
+            y += 35;
+
+            // Паспорт
+            Label lblPassport = new Label();
+            lblPassport.Text = "Паспорт:";
+            lblPassport.Location = new Point(30, y);
+            lblPassport.Size = new Size(labelWidth, 25);
+            this.Controls.Add(lblPassport);
+
+            txtPassport = new TextBox();
+            txtPassport.Location = new Point(160, y);
+            txtPassport.Size = new Size(controlWidth, 23);
+            this.Controls.Add(txtPassport);
+            y += 40;
+
+            // Кнопки
+            Panel buttonPanel = new Panel();
+            buttonPanel.Location = new Point(30, y);
+            buttonPanel.Size = new Size(380, 50);
+
+            btnSave = new Button();
+            btnSave.Text = "Сохранить";
+            btnSave.Location = new Point(50, 10);
+            btnSave.Size = new Size(100, 35);
+            btnSave.BackColor = Color.FromArgb(46, 204, 113);
+            btnSave.ForeColor = Color.White;
+            btnSave.Click += BtnSave_Click;
+            buttonPanel.Controls.Add(btnSave);
+
+            btnCancel = new Button();
+            btnCancel.Text = "Отмена";
+            btnCancel.Location = new Point(165, 10);
+            btnCancel.Size = new Size(100, 35);
+            btnCancel.BackColor = Color.FromArgb(149, 165, 166);
+            btnCancel.ForeColor = Color.White;
+            btnCancel.Click += (s, e) => this.DialogResult = DialogResult.Cancel;
+            buttonPanel.Controls.Add(btnCancel);
+
+            if (customerId.HasValue)
+            {
+                btnDelete = new Button();
+                btnDelete.Text = "Удалить";
+                btnDelete.Location = new Point(280, 10);
+                btnDelete.Size = new Size(100, 35);
+                btnDelete.BackColor = Color.FromArgb(231, 76, 60);
+                btnDelete.ForeColor = Color.White;
+                btnDelete.Click += BtnDelete_Click;
+                buttonPanel.Controls.Add(btnDelete);
+            }
+
+            this.Controls.Add(buttonPanel);
+        }
+
+        private void LoadCustomerData()
+        {
+            try
+            {
+                string query = "SELECT * FROM Customers WHERE CustomerID = @CustomerID";
+                DataTable dt = dbHelper.ExecuteQuery(query, 
+                    new MySqlParameter("@CustomerID", customerId.Value));
+                
+                if (dt.Rows.Count > 0)
+                {
+                    DataRow row = dt.Rows[0];
+                    
+                    txtFirstName.Text = row["FirstName"].ToString();
+                    txtLastName.Text = row["LastName"].ToString();
+                    txtEmail.Text = row["Email"].ToString();
+                    txtPhone.Text = row["Phone"].ToString();
+                    
+                    if (row["Address"] != DBNull.Value)
+                    {
+                        txtAddress.Text = row["Address"].ToString();
+                    }
+                    
+                    if (row["BirthDate"] != DBNull.Value)
+                    {
+                        dtpBirthDate.Value = Convert.ToDateTime(row["BirthDate"]);
+                    }
+                    
+                    if (row["Passport"] != DBNull.Value)
+                    {
+                        txtPassport.Text = row["Passport"].ToString();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка загрузки данных покупателя: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void BtnSave_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(txtFirstName.Text) || string.IsNullOrWhiteSpace(txtLastName.Text))
+            {
+                MessageBox.Show("Введите имя и фамилию покупателя", "Ошибка");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(txtPhone.Text))
+            {
+                MessageBox.Show("Введите телефон покупателя", "Ошибка");
+                return;
+            }
+
+            try
+            {
+                if (customerId.HasValue)
+                {
+                    // Обновление существующего покупателя
+                    string query = @"
+                        UPDATE Customers 
+                        SET FirstName = @FirstName,
+                            LastName = @LastName,
+                            Email = @Email,
+                            Phone = @Phone,
+                            Address = @Address,
+                            BirthDate = @BirthDate,
+                            Passport = @Passport
+                        WHERE CustomerID = @CustomerID";
+                    
+                    MySqlParameter[] parameters = {
+                        new MySqlParameter("@FirstName", txtFirstName.Text),
+                        new MySqlParameter("@LastName", txtLastName.Text),
+                        new MySqlParameter("@Email", txtEmail.Text),
+                        new MySqlParameter("@Phone", txtPhone.Text),
+                        new MySqlParameter("@Address", txtAddress.Text),
+                        new MySqlParameter("@BirthDate", dtpBirthDate.Value),
+                        new MySqlParameter("@Passport", txtPassport.Text),
+                        new MySqlParameter("@CustomerID", customerId.Value)
+                    };
+                    
+                    dbHelper.ExecuteNonQuery(query, parameters);
+                }
+                else
+                {
+                    // Добавление нового покупателя
+                    string query = @"
+                        INSERT INTO Customers (FirstName, LastName, Email, Phone, Address, BirthDate, Passport)
+                        VALUES (@FirstName, @LastName, @Email, @Phone, @Address, @BirthDate, @Passport)";
+                    
+                    MySqlParameter[] parameters = {
+                        new MySqlParameter("@FirstName", txtFirstName.Text),
+                        new MySqlParameter("@LastName", txtLastName.Text),
+                        new MySqlParameter("@Email", txtEmail.Text),
+                        new MySqlParameter("@Phone", txtPhone.Text),
+                        new MySqlParameter("@Address", txtAddress.Text),
+                        new MySqlParameter("@BirthDate", dtpBirthDate.Value),
+                        new MySqlParameter("@Passport", txtPassport.Text)
+                    };
+                    
+                    dbHelper.ExecuteNonQuery(query, parameters);
+                }
+                
+                this.DialogResult = DialogResult.OK;
+                this.Close();
+            }
+            catch (MySqlException ex) when (ex.Number == 1062)
+            {
+                MessageBox.Show("Покупатель с таким email или паспортом уже существует", "Ошибка");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка сохранения покупателя: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void BtnDelete_Click(object sender, EventArgs e)
+        {
+            if (MessageBox.Show("Вы уверены, что хотите удалить этого покупателя?", 
+                "Подтверждение удаления", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+            {
+                try
+                {
+                    // Проверяем, есть ли у покупателя продажи
+                    string checkQuery = "SELECT COUNT(*) FROM Sales WHERE CustomerID = @CustomerID";
+                    int salesCount = Convert.ToInt32(dbHelper.ExecuteScalar(checkQuery, 
+                        new MySqlParameter("@CustomerID", customerId.Value)));
+                    
+                    if (salesCount > 0)
+                    {
+                        MessageBox.Show("Невозможно удалить покупателя, у которого есть покупки.\n" +
+                                      "Вы можете деактивировать его, удалив контактные данные.", 
+                                      "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+                    
+                    string query = "DELETE FROM Customers WHERE CustomerID = @CustomerID";
+                    dbHelper.ExecuteNonQuery(query, new MySqlParameter("@CustomerID", customerId.Value));
+                    
+                    this.DialogResult = DialogResult.OK;
+                    this.Close();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Ошибка удаления покупателя: " + ex.Message, "Ошибка");
+                }
+            }
+        }
+    }
+}
