@@ -1,0 +1,968 @@
+// Продолжение класса MainForm после LoadUsers метода
+
+        private void LoadUsers()
+        {
+            string query = @"
+                SELECT 
+                    id as 'ID',
+                    username as 'Логин',
+                    full_name as 'ФИО',
+                    email as 'Email',
+                    role as 'Роль',
+                    DATE_FORMAT(created_at, '%d.%m.%Y %H:%i') as 'Дата регистрации',
+                    CASE WHEN is_active THEN '✅ Активен' ELSE '❌ Не активен' END as 'Статус'
+                FROM users
+                ORDER BY role, username";
+            DataTable dt = dbHelper.ExecuteQuery(query);
+            dataGridViewUsers.DataSource = dt;
+        }
+
+        private void UpdateStatistics()
+        {
+            try
+            {
+                // Общее количество автомобилей
+                string totalCarsQuery = "SELECT COUNT(*) FROM Cars";
+                DataTable totalCarsDt = dbHelper.ExecuteQuery(totalCarsQuery);
+                if (totalCarsDt.Rows.Count > 0)
+                {
+                    lblStatsTotalCars.Text = totalCarsDt.Rows[0][0].ToString();
+                }
+
+                // Автомобили в наличии
+                string availableCarsQuery = "SELECT COUNT(*) FROM Cars WHERE InStock = TRUE";
+                DataTable availableCarsDt = dbHelper.ExecuteQuery(availableCarsQuery);
+                if (availableCarsDt.Rows.Count > 0)
+                {
+                    lblStatsAvailableCars.Text = availableCarsDt.Rows[0][0].ToString();
+                }
+
+                // Общее количество продаж
+                string totalSalesQuery = "SELECT COUNT(*) FROM Sales";
+                DataTable totalSalesDt = dbHelper.ExecuteQuery(totalSalesQuery);
+                if (totalSalesDt.Rows.Count > 0)
+                {
+                    lblStatsTotalSales.Text = totalSalesDt.Rows[0][0].ToString();
+                }
+
+                // Общая выручка
+                string totalRevenueQuery = "SELECT SUM(SalePrice) FROM Sales";
+                DataTable totalRevenueDt = dbHelper.ExecuteQuery(totalRevenueQuery);
+                if (totalRevenueDt.Rows.Count > 0 && totalRevenueDt.Rows[0][0] != DBNull.Value)
+                {
+                    decimal revenue = Convert.ToDecimal(totalRevenueDt.Rows[0][0]);
+                    lblStatsTotalRevenue.Text = $"{revenue:N0} руб.";
+                }
+                else
+                {
+                    lblStatsTotalRevenue.Text = "0 руб.";
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка загрузки статистики: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void LoadSalesStatistics()
+        {
+            string query = @"
+                SELECT 
+                    DATE_FORMAT(SaleDate, '%Y-%m') as 'Месяц',
+                    COUNT(*) as 'Количество продаж',
+                    SUM(SalePrice) as 'Общая сумма',
+                    AVG(SalePrice) as 'Средний чек'
+                FROM Sales
+                GROUP BY DATE_FORMAT(SaleDate, '%Y-%m')
+                ORDER BY DATE_FORMAT(SaleDate, '%Y-%m') DESC
+                LIMIT 12";
+            DataTable dt = dbHelper.ExecuteQuery(query);
+            dataGridViewStats.DataSource = dt;
+        }
+
+        private void BtnAddBrand_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(txtBrandName.Text))
+            {
+                MessageBox.Show("Введите название марки", "Ошибка");
+                return;
+            }
+
+            try
+            {
+                string query = "INSERT INTO Brands (BrandName, Country) VALUES (@BrandName, @Country)";
+                MySqlParameter[] parameters = {
+                    new MySqlParameter("@BrandName", txtBrandName.Text),
+                    new MySqlParameter("@Country", txtCountry.Text)
+                };
+                
+                dbHelper.ExecuteNonQuery(query, parameters);
+                
+                MessageBox.Show("Марка успешно добавлена", "Успех");
+                txtBrandName.Text = "";
+                txtCountry.Text = "";
+                LoadBrands();
+                LoadComboBoxData();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка добавления марки: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void BtnAddCar_Click(object sender, EventArgs e)
+        {
+            if (cmbBrands.SelectedIndex == -1 || string.IsNullOrWhiteSpace(txtModel.Text))
+            {
+                MessageBox.Show("Заполните все обязательные поля", "Ошибка");
+                return;
+            }
+
+            try
+            {
+                string query = @"
+                    INSERT INTO Cars (BrandID, Model, Year, Color, Price, VIN, InStock)
+                    VALUES (@BrandID, @Model, @Year, @Color, @Price, @VIN, TRUE)";
+                
+                MySqlParameter[] parameters = {
+                    new MySqlParameter("@BrandID", cmbBrands.SelectedValue),
+                    new MySqlParameter("@Model", txtModel.Text),
+                    new MySqlParameter("@Year", (int)numYear.Value),
+                    new MySqlParameter("@Color", txtColor.Text),
+                    new MySqlParameter("@Price", numPrice.Value),
+                    new MySqlParameter("@VIN", txtVIN.Text)
+                };
+                
+                dbHelper.ExecuteNonQuery(query, parameters);
+                
+                MessageBox.Show("Автомобиль успешно добавлен", "Успех");
+                
+                // Очистка полей
+                txtModel.Text = "";
+                txtColor.Text = "";
+                txtVIN.Text = "";
+                numPrice.Value = 1000000;
+                
+                LoadCars();
+                LoadComboBoxData();
+                UpdateStatistics();
+            }
+            catch (MySqlException ex) when (ex.Number == 1062) // Duplicate entry
+            {
+                MessageBox.Show("Автомобиль с таким VIN уже существует", "Ошибка");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка добавления автомобиля: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void BtnAddSale_Click(object sender, EventArgs e)
+        {
+            if (cmbCar.SelectedIndex == -1 || cmbCustomer.SelectedIndex == -1 || cmbEmployee.SelectedIndex == -1)
+            {
+                MessageBox.Show("Выберите автомобиль, покупателя и сотрудника", "Ошибка");
+                return;
+            }
+
+            try
+            {
+                // Начать транзакцию
+                dbHelper.ExecuteNonQuery("START TRANSACTION");
+                
+                // 1. Добавить продажу
+                string saleQuery = @"
+                    INSERT INTO Sales (CarID, CustomerID, EmployeeID, SaleDate, SalePrice)
+                    VALUES (@CarID, @CustomerID, @EmployeeID, @SaleDate, @SalePrice)";
+                
+                MySqlParameter[] saleParams = {
+                    new MySqlParameter("@CarID", cmbCar.SelectedValue),
+                    new MySqlParameter("@CustomerID", cmbCustomer.SelectedValue),
+                    new MySqlParameter("@EmployeeID", cmbEmployee.SelectedValue),
+                    new MySqlParameter("@SaleDate", dtpSaleDate.Value),
+                    new MySqlParameter("@SalePrice", numSalePrice.Value)
+                };
+                
+                dbHelper.ExecuteNonQuery(saleQuery, saleParams);
+                
+                // 2. Обновить статус автомобиля
+                string updateCarQuery = "UPDATE Cars SET InStock = FALSE WHERE CarID = @CarID";
+                dbHelper.ExecuteNonQuery(updateCarQuery, new MySqlParameter("@CarID", cmbCar.SelectedValue));
+                
+                // 3. Зафиксировать транзакцию
+                dbHelper.ExecuteNonQuery("COMMIT");
+                
+                MessageBox.Show("Продажа успешно оформлена", "Успех");
+                
+                // Обновить данные
+                LoadCars();
+                LoadSales();
+                LoadComboBoxData();
+                UpdateStatistics();
+                LoadSalesStatistics();
+            }
+            catch (Exception ex)
+            {
+                // Откат транзакции в случае ошибки
+                dbHelper.ExecuteNonQuery("ROLLBACK");
+                MessageBox.Show("Ошибка оформления продажи: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void BtnSearchCars_Click(object sender, EventArgs e)
+        {
+            string searchText = txtSearchCar.Text.Trim();
+            if (string.IsNullOrWhiteSpace(searchText))
+            {
+                LoadCars();
+                return;
+            }
+
+            try
+            {
+                string query = @"
+                    SELECT 
+                        c.CarID as 'ID',
+                        b.BrandName as 'Марка',
+                        c.Model as 'Модель',
+                        c.Year as 'Год',
+                        c.Color as 'Цвет', 
+                        FORMAT(c.Price, 0) as 'Цена',
+                        c.VIN as 'VIN-код',
+                        CASE WHEN c.InStock THEN 'В наличии' ELSE 'Продано' END as 'Статус'
+                    FROM Cars c 
+                    JOIN Brands b ON c.BrandID = b.BrandID
+                    WHERE b.BrandName LIKE @Search OR 
+                          c.Model LIKE @Search OR 
+                          c.Color LIKE @Search OR
+                          c.VIN LIKE @Search
+                    ORDER BY b.BrandName, c.Model";
+                
+                MySqlParameter parameter = new MySqlParameter("@Search", $"%{searchText}%");
+                DataTable dt = dbHelper.ExecuteQuery(query, parameter);
+                dataGridViewCars.DataSource = dt;
+                
+                if (dt.Rows.Count == 0)
+                {
+                    MessageBox.Show("Автомобили не найдены", "Информация");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка поиска: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void BtnAddUser_Click(object sender, EventArgs e)
+        {
+            using (var form = new UserForm(null, dbHelper))
+            {
+                if (form.ShowDialog() == DialogResult.OK)
+                {
+                    LoadUsers();
+                    MessageBox.Show("Пользователь успешно добавлен", "Успех");
+                }
+            }
+        }
+
+        private void BtnEditUser_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewUsers.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("Выберите пользователя для редактирования", "Информация");
+                return;
+            }
+
+            int userId = Convert.ToInt32(dataGridViewUsers.SelectedRows[0].Cells["ID"].Value);
+            
+            using (var form = new UserForm(userId, dbHelper))
+            {
+                if (form.ShowDialog() == DialogResult.OK)
+                {
+                    LoadUsers();
+                    MessageBox.Show("Данные пользователя обновлены", "Успех");
+                }
+            }
+        }
+
+        private void BtnDeleteUser_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewUsers.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("Выберите пользователя для деактивации", "Информация");
+                return;
+            }
+
+            if (MessageBox.Show("Вы уверены, что хотите деактивировать выбранного пользователя?", 
+                "Подтверждение", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.No)
+            {
+                return;
+            }
+
+            try
+            {
+                int userId = Convert.ToInt32(dataGridViewUsers.SelectedRows[0].Cells["ID"].Value);
+                string username = dataGridViewUsers.SelectedRows[0].Cells["Логин"].Value.ToString();
+                
+                // Нельзя деактивировать себя
+                if (username == currentUsername)
+                {
+                    MessageBox.Show("Нельзя деактивировать свою учетную запись", "Ошибка");
+                    return;
+                }
+                
+                string query = "UPDATE users SET is_active = FALSE WHERE id = @UserId";
+                dbHelper.ExecuteNonQuery(query, new MySqlParameter("@UserId", userId));
+                
+                LoadUsers();
+                MessageBox.Show("Пользователь деактивирован", "Успех");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка деактивации пользователя: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void BtnActivateUser_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewUsers.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("Выберите пользователя для активации", "Информация");
+                return;
+            }
+
+            try
+            {
+                int userId = Convert.ToInt32(dataGridViewUsers.SelectedRows[0].Cells["ID"].Value);
+                string query = "UPDATE users SET is_active = TRUE WHERE id = @UserId";
+                dbHelper.ExecuteNonQuery(query, new MySqlParameter("@UserId", userId));
+                
+                LoadUsers();
+                MessageBox.Show("Пользователь активирован", "Успех");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка активации пользователя: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void BtnAutoSelect_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                // Автоматически выбираем текущего пользователя как сотрудника
+                string query = @"
+                    SELECT e.EmployeeID 
+                    FROM Employees e
+                    JOIN users u ON u.full_name LIKE CONCAT('%', e.FirstName, '%', e.LastName, '%')
+                    WHERE u.username = @Username";
+                
+                MySqlParameter param = new MySqlParameter("@Username", currentUsername);
+                DataTable dt = dbHelper.ExecuteQuery(query, param);
+                
+                if (dt.Rows.Count > 0)
+                {
+                    int employeeId = Convert.ToInt32(dt.Rows[0]["EmployeeID"]);
+                    
+                    // Находим соответствующий элемент в ComboBox
+                    for (int i = 0; i < cmbEmployee.Items.Count; i++)
+                    {
+                        DataRowView row = cmbEmployee.Items[i] as DataRowView;
+                        if (row != null && Convert.ToInt32(row["EmployeeID"]) == employeeId)
+                        {
+                            cmbEmployee.SelectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    MessageBox.Show("Сотрудник не найден для текущего пользователя", "Информация");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка автовыбора: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void BtnUpdateStats_Click(object sender, EventArgs e)
+        {
+            UpdateStatistics();
+            LoadSalesStatistics();
+            MessageBox.Show("Статистика обновлена", "Информация");
+        }
+
+        private void BtnRefresh_Click(object sender, EventArgs e)
+        {
+            RefreshAllData();
+            MessageBox.Show("Все данные обновлены", "Информация");
+        }
+
+        // Контекстное меню для DataGridView (добавить в конструктор)
+        private void AddContextMenus()
+        {
+            // Контекстное меню для автомобилей
+            ContextMenuStrip carsMenu = new ContextMenuStrip();
+            carsMenu.Items.Add("Редактировать", null, EditCar_Click);
+            carsMenu.Items.Add("Удалить", null, DeleteCar_Click);
+            carsMenu.Items.Add("Показать детали", null, ShowCarDetails_Click);
+            dataGridViewCars.ContextMenuStrip = carsMenu;
+
+            // Контекстное меню для продаж
+            ContextMenuStrip salesMenu = new ContextMenuStrip();
+            salesMenu.Items.Add("Отменить продажу", null, CancelSale_Click);
+            salesMenu.Items.Add("Печать чека", null, PrintReceipt_Click);
+            dataGridViewSales.ContextMenuStrip = salesMenu;
+
+            // Контекстное меню для покупателей (только для администратора/менеджера)
+            if (currentRole == "Администратор" || currentRole == "Менеджер")
+            {
+                ContextMenuStrip customersMenu = new ContextMenuStrip();
+                customersMenu.Items.Add("Редактировать", null, EditCustomer_Click);
+                customersMenu.Items.Add("Добавить покупку", null, AddPurchaseForCustomer_Click);
+                dataGridViewCustomers.ContextMenuStrip = customersMenu;
+            }
+        }
+
+        private void EditCar_Click(object sender, EventArgs e)
+        {
+            if (currentRole != "Администратор" && currentRole != "Менеджер")
+            {
+                MessageBox.Show("У вас нет прав на редактирование автомобилей", "Ошибка прав");
+                return;
+            }
+
+            if (dataGridViewCars.SelectedRows.Count > 0)
+            {
+                int carId = Convert.ToInt32(dataGridViewCars.SelectedRows[0].Cells["ID"].Value);
+                using (var form = new CarForm(carId, dbHelper))
+                {
+                    if (form.ShowDialog() == DialogResult.OK)
+                    {
+                        LoadCars();
+                        LoadComboBoxData();
+                    }
+                }
+            }
+        }
+
+        private void DeleteCar_Click(object sender, EventArgs e)
+        {
+            if (currentRole != "Администратор")
+            {
+                MessageBox.Show("У вас нет прав на удаление автомобилей", "Ошибка прав");
+                return;
+            }
+
+            if (dataGridViewCars.SelectedRows.Count > 0)
+            {
+                if (MessageBox.Show("Вы уверены, что хотите удалить автомобиль?", 
+                    "Подтверждение", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+                {
+                    try
+                    {
+                        int carId = Convert.ToInt32(dataGridViewCars.SelectedRows[0].Cells["ID"].Value);
+                        string query = "DELETE FROM Cars WHERE CarID = @CarId";
+                        dbHelper.ExecuteNonQuery(query, new MySqlParameter("@CarId", carId));
+                        
+                        LoadCars();
+                        LoadComboBoxData();
+                        UpdateStatistics();
+                        
+                        MessageBox.Show("Автомобиль удален", "Успех");
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Ошибка удаления: " + ex.Message, "Ошибка");
+                    }
+                }
+            }
+        }
+
+        private void ShowCarDetails_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewCars.SelectedRows.Count > 0)
+            {
+                int carId = Convert.ToInt32(dataGridViewCars.SelectedRows[0].Cells["ID"].Value);
+                string carInfo = dataGridViewCars.SelectedRows[0].Cells["Марка"].Value.ToString() + " " +
+                               dataGridViewCars.SelectedRows[0].Cells["Модель"].Value.ToString();
+                
+                MessageBox.Show($"Детали автомобиля:\n" +
+                              $"ID: {carId}\n" +
+                              $"Марка: {dataGridViewCars.SelectedRows[0].Cells["Марка"].Value}\n" +
+                              $"Модель: {dataGridViewCars.SelectedRows[0].Cells["Модель"].Value}\n" +
+                              $"Год: {dataGridViewCars.SelectedRows[0].Cells["Год"].Value}\n" +
+                              $"Цвет: {dataGridViewCars.SelectedRows[0].Cells["Цвет"].Value}\n" +
+                              $"Цена: {dataGridViewCars.SelectedRows[0].Cells["Цена"].Value}\n" +
+                              $"Статус: {dataGridViewCars.SelectedRows[0].Cells["Статус"].Value}",
+                              $"Информация об автомобиле {carInfo}");
+            }
+        }
+
+        private void CancelSale_Click(object sender, EventArgs e)
+        {
+            if (currentRole != "Администратор")
+            {
+                MessageBox.Show("Только администратор может отменять продажи", "Ошибка прав");
+                return;
+            }
+
+            if (dataGridViewSales.SelectedRows.Count > 0)
+            {
+                int saleId = Convert.ToInt32(dataGridViewSales.SelectedRows[0].Cells["ID"].Value);
+                string carInfo = dataGridViewSales.SelectedRows[0].Cells["Марка"].Value.ToString() + " " +
+                               dataGridViewSales.SelectedRows[0].Cells["Модель"].Value.ToString();
+                
+                if (MessageBox.Show($"Вы уверены, что хотите отменить продажу {carInfo}?\n" +
+                                  $"Эта операция вернет автомобиль в наличие.",
+                                  "Подтверждение", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+                {
+                    try
+                    {
+                        // Получаем CarID из продажи
+                        string getCarIdQuery = "SELECT CarID FROM Sales WHERE SaleID = @SaleId";
+                        DataTable dt = dbHelper.ExecuteQuery(getCarIdQuery, new MySqlParameter("@SaleId", saleId));
+                        
+                        if (dt.Rows.Count > 0)
+                        {
+                            int carId = Convert.ToInt32(dt.Rows[0]["CarID"]);
+                            
+                            // Начать транзакцию
+                            dbHelper.ExecuteNonQuery("START TRANSACTION");
+                            
+                            // Удалить продажу
+                            string deleteSaleQuery = "DELETE FROM Sales WHERE SaleID = @SaleId";
+                            dbHelper.ExecuteNonQuery(deleteSaleQuery, new MySqlParameter("@SaleId", saleId));
+                            
+                            // Вернуть автомобиль в наличие
+                            string updateCarQuery = "UPDATE Cars SET InStock = TRUE WHERE CarID = @CarId";
+                            dbHelper.ExecuteNonQuery(updateCarQuery, new MySqlParameter("@CarId", carId));
+                            
+                            // Зафиксировать транзакцию
+                            dbHelper.ExecuteNonQuery("COMMIT");
+                            
+                            LoadCars();
+                            LoadSales();
+                            LoadComboBoxData();
+                            UpdateStatistics();
+                            LoadSalesStatistics();
+                            
+                            MessageBox.Show("Продажа отменена, автомобиль возвращен в наличие", "Успех");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        dbHelper.ExecuteNonQuery("ROLLBACK");
+                        MessageBox.Show("Ошибка отмены продажи: " + ex.Message, "Ошибка");
+                    }
+                }
+            }
+        }
+
+        private void PrintReceipt_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewSales.SelectedRows.Count > 0)
+            {
+                // Генерация простого чека
+                string receipt = "=== ЧЕК ПРОДАЖИ АВТОМОБИЛЯ ===\n\n";
+                receipt += $"Номер продажи: {dataGridViewSales.SelectedRows[0].Cells["ID"].Value}\n";
+                receipt += $"Дата: {dataGridViewSales.SelectedRows[0].Cells["Дата продажи"].Value}\n";
+                receipt += $"Автомобиль: {dataGridViewSales.SelectedRows[0].Cells["Марка"].Value} " +
+                          $"{dataGridViewSales.SelectedRows[0].Cells["Модель"].Value}\n";
+                receipt += $"Покупатель: {dataGridViewSales.SelectedRows[0].Cells["Покупатель"].Value}\n";
+                receipt += $"Сотрудник: {dataGridViewSales.SelectedRows[0].Cells["Сотрудник"].Value}\n";
+                receipt += $"Сумма: {dataGridViewSales.SelectedRows[0].Cells["Сумма продажи"].Value} руб.\n\n";
+                receipt += $"Дата печати: {DateTime.Now:dd.MM.yyyy HH:mm}\n";
+                receipt += "=== Спасибо за покупку! ===";
+                
+                MessageBox.Show(receipt, "Чек продажи", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                
+                // Сохранение в файл
+                SaveFileDialog saveDialog = new SaveFileDialog();
+                saveDialog.Filter = "Текстовые файлы (*.txt)|*.txt|Все файлы (*.*)|*.*";
+                saveDialog.FileName = $"чек_продажи_{dataGridViewSales.SelectedRows[0].Cells["ID"].Value}.txt";
+                
+                if (saveDialog.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        System.IO.File.WriteAllText(saveDialog.FileName, receipt);
+                        MessageBox.Show($"Чек сохранен в файл: {saveDialog.FileName}", "Успех");
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Ошибка сохранения файла: " + ex.Message, "Ошибка");
+                    }
+                }
+            }
+        }
+
+        private void EditCustomer_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewCustomers.SelectedRows.Count > 0)
+            {
+                int customerId = Convert.ToInt32(dataGridViewCustomers.SelectedRows[0].Cells["ID"].Value);
+                using (var form = new CustomerForm(customerId, dbHelper))
+                {
+                    if (form.ShowDialog() == DialogResult.OK)
+                    {
+                        LoadCustomers();
+                        LoadComboBoxData();
+                    }
+                }
+            }
+        }
+
+        private void AddPurchaseForCustomer_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewCustomers.SelectedRows.Count > 0)
+            {
+                int customerId = Convert.ToInt32(dataGridViewCustomers.SelectedRows[0].Cells["ID"].Value);
+                string customerName = dataGridViewCustomers.SelectedRows[0].Cells["Фамилия"].Value.ToString() + " " +
+                                    dataGridViewCustomers.SelectedRows[0].Cells["Имя"].Value.ToString();
+                
+                // Устанавливаем выбранного покупателя в ComboBox на вкладке продаж
+                tabControl1.SelectedTab = tabSales;
+                
+                // Находим и выбираем покупателя в ComboBox
+                for (int i = 0; i < cmbCustomer.Items.Count; i++)
+                {
+                    DataRowView row = cmbCustomer.Items[i] as DataRowView;
+                    if (row != null && Convert.ToInt32(row["CustomerID"]) == customerId)
+                    {
+                        cmbCustomer.SelectedIndex = i;
+                        MessageBox.Show($"Выбран покупатель: {customerName}\nТеперь выберите автомобиль для продажи.", 
+                                      "Покупатель выбран");
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Добавляем в конструктор вызов создания контекстных меню
+        public MainForm(string username, string role, string fullName)
+        {
+            currentUsername = username;
+            currentRole = role;
+            currentFullName = fullName;
+            
+            InitializeComponent();
+            try
+            {
+                dbHelper = new DatabaseHelper();
+                LoadComboBoxData();
+                RefreshAllData();
+                SetupPermissions();
+                AddContextMenus(); // Добавляем контекстные меню
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка инициализации: " + ex.Message, "Ошибка");
+            }
+        }
+
+        // Метод для экспорта данных в Excel (упрощенный)
+        private void ExportToExcel(DataGridView dataGrid, string sheetName)
+        {
+            SaveFileDialog saveDialog = new SaveFileDialog();
+            saveDialog.Filter = "CSV файлы (*.csv)|*.csv|Все файлы (*.*)|*.*";
+            saveDialog.FileName = $"{sheetName}_{DateTime.Now:yyyyMMdd_HHmm}.csv";
+            
+            if (saveDialog.ShowDialog() == DialogResult.OK)
+            {
+                try
+                {
+                    using (System.IO.StreamWriter writer = new System.IO.StreamWriter(saveDialog.FileName, false, System.Text.Encoding.UTF8))
+                    {
+                        // Заголовки
+                        for (int i = 0; i < dataGrid.Columns.Count; i++)
+                        {
+                            writer.Write(dataGrid.Columns[i].HeaderText);
+                            if (i < dataGrid.Columns.Count - 1) writer.Write(",");
+                        }
+                        writer.WriteLine();
+                        
+                        // Данные
+                        foreach (DataGridViewRow row in dataGrid.Rows)
+                        {
+                            for (int i = 0; i < dataGrid.Columns.Count; i++)
+                            {
+                                if (row.Cells[i].Value != null)
+                                {
+                                    string value = row.Cells[i].Value.ToString();
+                                    // Экранируем запятые
+                                    if (value.Contains(",")) value = $"\"{value}\"";
+                                    writer.Write(value);
+                                }
+                                if (i < dataGrid.Columns.Count - 1) writer.Write(",");
+                            }
+                            writer.WriteLine();
+                        }
+                    }
+                    
+                    MessageBox.Show($"Данные экспортированы в файл: {saveDialog.FileName}", "Успех");
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Ошибка экспорта: " + ex.Message, "Ошибка");
+                }
+            }
+        }
+
+        // Добавляем кнопки экспорта на вкладки (можно добавить в соответствующие вкладки)
+        private void AddExportButtons()
+        {
+            // Добавить кнопку экспорта на вкладку автомобилей
+            Button btnExportCars = new Button();
+            btnExportCars.Text = "📤 Экспорт в CSV";
+            btnExportCars.Location = new Point(1050, 15);
+            btnExportCars.Size = new Size(120, 27);
+            btnExportCars.Click += (s, e) => ExportToExcel(dataGridViewCars, "Автомобили");
+            
+            // Найти панель поиска на вкладке автомобилей и добавить кнопку
+            foreach (Control control in tabCars.Controls)
+            {
+                if (control is Panel panel && panel.Controls.Count > 10) // Ищем панель ввода
+                {
+                    panel.Controls.Add(btnExportCars);
+                    break;
+                }
+            }
+        }
+    }
+
+    // Вспомогательные классы форм для редактирования
+    public class UserForm : Form
+    {
+        private TextBox txtUsername;
+        private TextBox txtPassword;
+        private TextBox txtFullName;
+        private TextBox txtEmail;
+        private ComboBox cmbRole;
+        private CheckBox chkIsActive;
+        private Button btnSave;
+        private Button btnCancel;
+        
+        private int? userId;
+        private DatabaseHelper dbHelper;
+
+        public UserForm(int? id, DatabaseHelper dbHelper)
+        {
+            this.userId = id;
+            this.dbHelper = dbHelper;
+            InitializeComponent();
+            if (id.HasValue) LoadUserData();
+        }
+
+        private void InitializeComponent()
+        {
+            this.Text = userId.HasValue ? "Редактирование пользователя" : "Новый пользователь";
+            this.Size = new Size(400, 350);
+            this.StartPosition = FormStartPosition.CenterParent;
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+
+            int y = 20;
+            int labelWidth = 120;
+            int controlWidth = 200;
+
+            // Username
+            Label lblUsername = new Label();
+            lblUsername.Text = "Логин:";
+            lblUsername.Location = new Point(20, y);
+            lblUsername.Size = new Size(labelWidth, 25);
+            this.Controls.Add(lblUsername);
+
+            txtUsername = new TextBox();
+            txtUsername.Location = new Point(140, y);
+            txtUsername.Size = new Size(controlWidth, 23);
+            this.Controls.Add(txtUsername);
+            y += 35;
+
+            // Password (только для новых пользователей)
+            if (!userId.HasValue)
+            {
+                Label lblPassword = new Label();
+                lblPassword.Text = "Пароль:";
+                lblPassword.Location = new Point(20, y);
+                lblPassword.Size = new Size(labelWidth, 25);
+                this.Controls.Add(lblPassword);
+
+                txtPassword = new TextBox();
+                txtPassword.Location = new Point(140, y);
+                txtPassword.Size = new Size(controlWidth, 23);
+                txtPassword.UseSystemPasswordChar = true;
+                this.Controls.Add(txtPassword);
+                y += 35;
+            }
+
+            // Full Name
+            Label lblFullName = new Label();
+            lblFullName.Text = "ФИО:";
+            lblFullName.Location = new Point(20, y);
+            lblFullName.Size = new Size(labelWidth, 25);
+            this.Controls.Add(lblFullName);
+
+            txtFullName = new TextBox();
+            txtFullName.Location = new Point(140, y);
+            txtFullName.Size = new Size(controlWidth, 23);
+            this.Controls.Add(txtFullName);
+            y += 35;
+
+            // Email
+            Label lblEmail = new Label();
+            lblEmail.Text = "Email:";
+            lblEmail.Location = new Point(20, y);
+            lblEmail.Size = new Size(labelWidth, 25);
+            this.Controls.Add(lblEmail);
+
+            txtEmail = new TextBox();
+            txtEmail.Location = new Point(140, y);
+            txtEmail.Size = new Size(controlWidth, 23);
+            this.Controls.Add(txtEmail);
+            y += 35;
+
+            // Role
+            Label lblRole = new Label();
+            lblRole.Text = "Роль:";
+            lblRole.Location = new Point(20, y);
+            lblRole.Size = new Size(labelWidth, 25);
+            this.Controls.Add(lblRole);
+
+            cmbRole = new ComboBox();
+            cmbRole.Location = new Point(140, y);
+            cmbRole.Size = new Size(controlWidth, 23);
+            cmbRole.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbRole.Items.AddRange(new string[] { "Администратор", "Менеджер", "Консультант" });
+            cmbRole.SelectedIndex = 2; // Консультант по умолчанию
+            this.Controls.Add(cmbRole);
+            y += 35;
+
+            // Is Active (только для редактирования)
+            if (userId.HasValue)
+            {
+                chkIsActive = new CheckBox();
+                chkIsActive.Text = "Активен";
+                chkIsActive.Location = new Point(140, y);
+                chkIsActive.Size = new Size(100, 25);
+                this.Controls.Add(chkIsActive);
+                y += 40;
+            }
+
+            // Buttons
+            btnSave = new Button();
+            btnSave.Text = "Сохранить";
+            btnSave.Location = new Point(80, y);
+            btnSave.Size = new Size(100, 30);
+            btnSave.BackColor = Color.FromArgb(46, 204, 113);
+            btnSave.ForeColor = Color.White;
+            btnSave.Click += BtnSave_Click;
+            this.Controls.Add(btnSave);
+
+            btnCancel = new Button();
+            btnCancel.Text = "Отмена";
+            btnCancel.Location = new Point(200, y);
+            btnCancel.Size = new Size(100, 30);
+            btnCancel.BackColor = Color.FromArgb(149, 165, 166);
+            btnCancel.ForeColor = Color.White;
+            btnCancel.Click += (s, e) => this.DialogResult = DialogResult.Cancel;
+            this.Controls.Add(btnCancel);
+        }
+
+        private void LoadUserData()
+        {
+            try
+            {
+                string query = "SELECT * FROM users WHERE id = @Id";
+                DataTable dt = dbHelper.ExecuteQuery(query, new MySqlParameter("@Id", userId.Value));
+                
+                if (dt.Rows.Count > 0)
+                {
+                    DataRow row = dt.Rows[0];
+                    txtUsername.Text = row["username"].ToString();
+                    txtFullName.Text = row["full_name"].ToString();
+                    txtEmail.Text = row["email"].ToString();
+                    cmbRole.Text = row["role"].ToString();
+                    if (chkIsActive != null)
+                        chkIsActive.Checked = Convert.ToBoolean(row["is_active"]);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка загрузки данных пользователя: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void BtnSave_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(txtUsername.Text) || string.IsNullOrWhiteSpace(txtFullName.Text))
+            {
+                MessageBox.Show("Заполните обязательные поля", "Ошибка");
+                return;
+            }
+
+            try
+            {
+                if (userId.HasValue)
+                {
+                    // Обновление существующего пользователя
+                    string query = @"
+                        UPDATE users 
+                        SET username = @Username, 
+                            full_name = @FullName, 
+                            email = @Email, 
+                            role = @Role,
+                            is_active = @IsActive
+                        WHERE id = @Id";
+                    
+                    MySqlParameter[] parameters = {
+                        new MySqlParameter("@Username", txtUsername.Text),
+                        new MySqlParameter("@FullName", txtFullName.Text),
+                        new MySqlParameter("@Email", txtEmail.Text),
+                        new MySqlParameter("@Role", cmbRole.Text),
+                        new MySqlParameter("@IsActive", chkIsActive?.Checked ?? true),
+                        new MySqlParameter("@Id", userId.Value)
+                    };
+                    
+                    dbHelper.ExecuteNonQuery(query, parameters);
+                }
+                else
+                {
+                    // Создание нового пользователя
+                    if (string.IsNullOrWhiteSpace(txtPassword.Text))
+                    {
+                        MessageBox.Show("Введите пароль", "Ошибка");
+                        return;
+                    }
+
+                    string query = @"
+                        INSERT INTO users (username, password, full_name, email, role, is_active)
+                        VALUES (@Username, SHA2(@Password, 256), @FullName, @Email, @Role, TRUE)";
+                    
+                    MySqlParameter[] parameters = {
+                        new MySqlParameter("@Username", txtUsername.Text),
+                        new MySqlParameter("@Password", txtPassword.Text),
+                        new MySqlParameter("@FullName", txtFullName.Text),
+                        new MySqlParameter("@Email", txtEmail.Text),
+                        new MySqlParameter("@Role", cmbRole.Text)
+                    };
+                    
+                    dbHelper.ExecuteNonQuery(query, parameters);
+                }
+                
+                this.DialogResult = DialogResult.OK;
+                this.Close();
+            }
+            catch (MySqlException ex) when (ex.Number == 1062)
+            {
+                MessageBox.Show("Пользователь с таким логином уже существует", "Ошибка");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка сохранения пользователя: " + ex.Message, "Ошибка");
+            }
+        }
+    }
+}
