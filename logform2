@@ -1,0 +1,59 @@
+private void BtnLogin_Click(object sender, EventArgs e)
+{
+    string username = txtUsername.Text.Trim();
+    string password = txtPassword.Text;
+
+    if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+    {
+        MessageBox.Show("Введите логин и пароль", "Ошибка");
+        return;
+    }
+
+    try
+    {
+        DatabaseHelper dbHelper = new DatabaseHelper();
+        
+        // Вычисляем хэш пароля
+        string passwordHash = DatabaseHelper.ComputeSHA256Hash(password);
+        
+        // Проверяем пользователя
+        string query = @"
+            SELECT id, username, full_name, role, is_active
+            FROM users
+            WHERE username = @Username 
+            AND password = @Password
+            AND is_active = TRUE";
+        
+        MySqlParameter[] parameters = {
+            new MySqlParameter("@Username", username),
+            new MySqlParameter("@Password", passwordHash)
+        };
+
+        DataTable result = dbHelper.ExecuteQuery(query, parameters);
+
+        if (result.Rows.Count > 0)
+        {
+            DataRow user = result.Rows[0];
+            string fullName = user["full_name"].ToString();
+            string role = user["role"].ToString();
+
+            // Открытие главной формы
+            MainForm mainForm = new MainForm(username, role, fullName);
+            this.Hide();
+            mainForm.ShowDialog();
+            
+            this.Show();
+            txtPassword.Text = "";
+        }
+        else
+        {
+            MessageBox.Show("Неверный логин или пароль", "Ошибка входа");
+            txtPassword.Text = "";
+            txtPassword.Focus();
+        }
+    }
+    catch (Exception ex)
+    {
+        MessageBox.Show($"Ошибка при входе: {ex.Message}", "Ошибка");
+    }
+}
