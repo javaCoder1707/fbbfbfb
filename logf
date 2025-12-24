@@ -1,0 +1,292 @@
+using System;
+using System.Drawing;
+using System.Windows.Forms;
+using MySql.Data.MySqlClient;
+
+namespace AutoSalonApp
+{
+    public partial class LoginForm : Form
+    {
+        private TextBox txtUsername;
+        private TextBox txtPassword;
+        private Button btnLogin;
+        private Button btnExit;
+        private Label lblTitle;
+        private CheckBox chkRemember;
+        private LinkLabel lnkForgotPassword;
+        private Panel panelLogin;
+
+        public LoginForm()
+        {
+            InitializeComponent();
+            this.StartPosition = FormStartPosition.CenterScreen;
+        }
+
+        private void InitializeComponent()
+        {
+            // Настройки формы
+            this.Text = "Автосалон - Вход в систему";
+            this.Size = new Size(400, 450);
+            this.BackColor = Color.FromArgb(240, 240, 240);
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+
+            // Панель входа
+            panelLogin = new Panel();
+            panelLogin.Location = new Point(50, 30);
+            panelLogin.Size = new Size(300, 350);
+            panelLogin.BackColor = Color.White;
+            panelLogin.BorderStyle = BorderStyle.FixedSingle;
+
+            // Заголовок
+            lblTitle = new Label();
+            lblTitle.Text = "ВХОД В СИСТЕМУ";
+            lblTitle.Font = new Font("Segoe UI", 16, FontStyle.Bold);
+            lblTitle.ForeColor = Color.FromArgb(52, 73, 94);
+            lblTitle.Location = new Point(60, 30);
+            lblTitle.Size = new Size(200, 40);
+            lblTitle.TextAlign = ContentAlignment.MiddleCenter;
+
+            // Иконка пользователя
+            PictureBox picUser = new PictureBox();
+            picUser.Image = SystemIcons.Information.ToBitmap(); // Можно заменить на свою иконку
+            picUser.Location = new Point(120, 80);
+            picUser.Size = new Size(60, 60);
+            picUser.SizeMode = PictureBoxSizeMode.StretchImage;
+
+            // Логин
+            Label lblUsername = new Label();
+            lblUsername.Text = "Логин:";
+            lblUsername.Location = new Point(40, 160);
+            lblUsername.Size = new Size(60, 25);
+            lblUsername.Font = new Font("Segoe UI", 10);
+
+            txtUsername = new TextBox();
+            txtUsername.Location = new Point(110, 157);
+            txtUsername.Size = new Size(150, 25);
+            txtUsername.Font = new Font("Segoe UI", 10);
+            txtUsername.Text = "admin"; // Для тестирования
+
+            // Пароль
+            Label lblPassword = new Label();
+            lblPassword.Text = "Пароль:";
+            lblPassword.Location = new Point(40, 200);
+            lblPassword.Size = new Size(60, 25);
+            lblPassword.Font = new Font("Segoe UI", 10);
+
+            txtPassword = new TextBox();
+            txtPassword.Location = new Point(110, 197);
+            txtPassword.Size = new Size(150, 25);
+            txtPassword.Font = new Font("Segoe UI", 10);
+            txtPassword.UseSystemPasswordChar = true;
+            txtPassword.Text = "admin123"; // Для тестирования
+
+            // Запомнить меня
+            chkRemember = new CheckBox();
+            chkRemember.Text = "Запомнить меня";
+            chkRemember.Location = new Point(110, 230);
+            chkRemember.Size = new Size(150, 25);
+            chkRemember.Font = new Font("Segoe UI", 9);
+
+            // Кнопка входа
+            btnLogin = new Button();
+            btnLogin.Text = "ВОЙТИ";
+            btnLogin.Location = new Point(80, 270);
+            btnLogin.Size = new Size(140, 40);
+            btnLogin.BackColor = Color.FromArgb(52, 152, 219);
+            btnLogin.ForeColor = Color.White;
+            btnLogin.Font = new Font("Segoe UI", 11, FontStyle.Bold);
+            btnLogin.Click += BtnLogin_Click;
+
+            // Забыли пароль
+            lnkForgotPassword = new LinkLabel();
+            lnkForgotPassword.Text = "Забыли пароль?";
+            lnkForgotPassword.Location = new Point(100, 320);
+            lnkForgotPassword.Size = new Size(100, 20);
+            lnkForgotPassword.LinkClicked += LnkForgotPassword_LinkClicked;
+
+            // Кнопка выхода
+            btnExit = new Button();
+            btnExit.Text = "ВЫХОД";
+            btnExit.Location = new Point(150, 390);
+            btnExit.Size = new Size(100, 35);
+            btnExit.BackColor = Color.FromArgb(231, 76, 60);
+            btnExit.ForeColor = Color.White;
+            btnExit.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            btnExit.Click += BtnExit_Click;
+
+            // Добавление элементов на панель
+            panelLogin.Controls.Add(lblTitle);
+            panelLogin.Controls.Add(picUser);
+            panelLogin.Controls.Add(lblUsername);
+            panelLogin.Controls.Add(txtUsername);
+            panelLogin.Controls.Add(lblPassword);
+            panelLogin.Controls.Add(txtPassword);
+            panelLogin.Controls.Add(chkRemember);
+            panelLogin.Controls.Add(btnLogin);
+            panelLogin.Controls.Add(lnkForgotPassword);
+
+            // Добавление элементов на форму
+            this.Controls.Add(panelLogin);
+            this.Controls.Add(btnExit);
+
+            // Назначение кнопки Enter для входа
+            this.AcceptButton = btnLogin;
+        }
+
+        private void BtnLogin_Click(object sender, EventArgs e)
+        {
+            string username = txtUsername.Text.Trim();
+            string password = txtPassword.Text;
+
+            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+            {
+                MessageBox.Show("Введите логин и пароль", "Ошибка", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                DatabaseHelper dbHelper = new DatabaseHelper();
+                
+                // Проверка соединения с БД
+                if (!dbHelper.TestConnection())
+                {
+                    MessageBox.Show("Не удалось подключиться к базе данных.\nПроверьте настройки подключения.", 
+                        "Ошибка соединения", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                // Проверка пользователя
+                string query = @"
+                    SELECT u.id, u.username, u.full_name, u.role, u.is_active,
+                           e.EmployeeID, e.Position
+                    FROM users u
+                    LEFT JOIN Employees e ON u.full_name LIKE CONCAT('%', e.FirstName, '%', e.LastName, '%')
+                    WHERE u.username = @Username 
+                    AND u.password = SHA2(@Password, 256)
+                    AND u.is_active = TRUE";
+                
+                MySqlParameter[] parameters = {
+                    new MySqlParameter("@Username", username),
+                    new MySqlParameter("@Password", password)
+                };
+
+                DataTable result = dbHelper.ExecuteQuery(query, parameters);
+
+                if (result.Rows.Count > 0)
+                {
+                    DataRow user = result.Rows[0];
+                    string fullName = user["full_name"].ToString();
+                    string role = user["role"].ToString();
+
+                    // Сохранение данных о входе
+                    SaveLoginHistory(user["id"].ToString());
+
+                    // Открытие главной формы
+                    MainForm mainForm = new MainForm(username, role, fullName);
+                    this.Hide();
+                    mainForm.ShowDialog();
+                    
+                    // После закрытия главной формы
+                    this.Show();
+                    txtPassword.Text = "";
+                    
+                    if (chkRemember.Checked)
+                    {
+                        txtUsername.Text = username;
+                    }
+                    else
+                    {
+                        txtUsername.Text = "";
+                    }
+                }
+                else
+                {
+                    MessageBox.Show("Неверный логин или пароль", "Ошибка входа", 
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    txtPassword.Text = "";
+                    txtPassword.Focus();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при входе: {ex.Message}", "Ошибка", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void SaveLoginHistory(string userId)
+        {
+            try
+            {
+                DatabaseHelper dbHelper = new DatabaseHelper();
+                string query = @"
+                    INSERT INTO login_history (user_id, login_time, ip_address)
+                    VALUES (@UserId, NOW(), @IpAddress)";
+                
+                string ipAddress = GetLocalIPAddress();
+                
+                MySqlParameter[] parameters = {
+                    new MySqlParameter("@UserId", userId),
+                    new MySqlParameter("@IpAddress", ipAddress)
+                };
+
+                dbHelper.ExecuteNonQuery(query, parameters);
+            }
+            catch
+            {
+                // Игнорируем ошибки истории входа
+            }
+        }
+
+        private string GetLocalIPAddress()
+        {
+            try
+            {
+                var host = System.Net.Dns.GetHostEntry(System.Net.Dns.GetHostName());
+                foreach (var ip in host.AddressList)
+                {
+                    if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                    {
+                        return ip.ToString();
+                    }
+                }
+                return "127.0.0.1";
+            }
+            catch
+            {
+                return "Unknown";
+            }
+        }
+
+        private void LnkForgotPassword_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        {
+            MessageBox.Show("Обратитесь к администратору системы для восстановления пароля.", 
+                "Восстановление пароля", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void BtnExit_Click(object sender, EventArgs e)
+        {
+            if (MessageBox.Show("Вы уверены, что хотите выйти из программы?", "Подтверждение выхода", 
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            {
+                Application.Exit();
+            }
+        }
+
+        // Автовход для тестирования (можно удалить в продакшене)
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            
+            // Автовход для отладки (закомментировать в продакшене)
+            // if (System.Diagnostics.Debugger.IsAttached)
+            // {
+            //     btnLogin.PerformClick();
+            // }
+        }
+    }
+}
