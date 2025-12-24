@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+    <startup> 
+        <supportedRuntime version="v4.0" sku=".NETFramework,Version=v4.8" />
+    </startup>
+    
+    <connectionStrings>
+        <add name="ApplicantTrackingConnection" 
+             connectionString="server=localhost;database=applicant_tracking;uid=root;pwd=12345;charset=utf8mb4;"
+             providerName="MySql.Data.MySqlClient" />
+    </connectionStrings>
+    
+    <appSettings>
+        <add key="ApplicationName" value="Система учета абитуриентов" />
+        <add key="Version" value="1.0.0" />
+        <add key="InstitutionName" value="Приемная комиссия" />
+        <add key="CurrentYear" value="2024" />
+        <add key="DefaultRecordsPerPage" value="50" />
+        <add key="EnableLogging" value="true" />
+        <add key="LogFile" value="applicant_tracking.log" />
+    </appSettings>
+    
+</configuration>
