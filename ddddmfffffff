@@ -1,0 +1,1332 @@
+using System;
+using System.Data;
+using System.Drawing;
+using System.Windows.Forms;
+using MySql.Data.MySqlClient;
+
+namespace ApplicantTrackingSystem
+{
+    public partial class MainForm : Form
+    {
+        private DatabaseHelper dbHelper;
+        private TabControl tabControl1;
+        
+        private TabPage tabApplicants, tabApplications, tabSpecialties, tabUniversities, tabStatistics;
+        private DataGridView dataGridViewApplicants, dataGridViewApplications, dataGridViewSpecialties, 
+                          dataGridViewUniversities, dataGridViewStats;
+        
+        // Элементы для вкладки "Абитуриенты"
+        private TextBox txtFirstName, txtLastName, txtEmail, txtPhone, txtAddress;
+        private DateTimePicker dtpBirthDate;
+        private NumericUpDown numAvgScore;
+        private ComboBox cmbEducationType;
+        private Button btnAddApplicant;
+        
+        // Элементы для вкладки "Заявки"
+        private ComboBox cmbApplicant, cmbSpecialty, cmbUniversity;
+        private DateTimePicker dtpApplicationDate;
+        private ComboBox cmbStatus;
+        private Button btnAddApplication;
+        
+        // Элементы для вкладки "Специальности"
+        private TextBox txtSpecialtyName, txtSpecialtyCode, txtDescription;
+        private NumericUpDown numRequiredScore;
+        private Button btnAddSpecialty;
+        
+        // Элементы для вкладки "ВУЗы"
+        private TextBox txtUniversityName, txtUniversityCity, txtUniversityWebsite;
+        private Button btnAddUniversity;
+        
+        // Общие элементы
+        private Button btnRefresh, btnLogout;
+        private string currentUsername, currentRole, currentFullName;
+        
+        // Статистика
+        private Label lblStatsTotalApplicants, lblStatsTotalApplications, lblStatsPendingApplications, 
+                      lblStatsAcceptedApplications, lblStatsAvgScore;
+
+        public MainForm(string username, string role, string fullName)
+        {
+            currentUsername = username;
+            currentRole = role;
+            currentFullName = fullName;
+            
+            InitializeComponent();
+            SetupPermissions();
+            LoadInitialData();
+            AddContextMenus();
+        }
+
+        private void InitializeComponent()
+        {
+            this.Text = $"Учет абитуриентов - {currentFullName} ({currentRole})";
+            this.Size = new Size(1200, 700);
+            this.StartPosition = FormStartPosition.CenterScreen;
+            this.Font = new Font("Segoe UI", 9);
+            
+            CreateHeader();
+            CreateTabs();
+            CreateRefreshButton();
+            
+            this.Controls.Add(tabControl1);
+            this.Controls.Add(btnRefresh);
+        }
+
+        private void CreateHeader()
+        {
+            Panel header = new Panel
+            {
+                Location = new Point(10, 10),
+                Size = new Size(1150, 40),
+                BorderStyle = BorderStyle.FixedSingle,
+                BackColor = Color.FromArgb(240, 240, 240)
+            };
+
+            Label lblInfo = new Label
+            {
+                Text = $"Пользователь: {currentFullName} | Роль: {currentRole} | Время входа: {DateTime.Now:HH:mm:ss}",
+                Location = new Point(10, 10),
+                Size = new Size(800, 20),
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                ForeColor = Color.FromArgb(52, 152, 219)
+            };
+
+            btnLogout = new Button
+            {
+                Text = "Выйти",
+                Location = new Point(1050, 5),
+                Size = new Size(90, 30),
+                BackColor = Color.FromArgb(231, 76, 60),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold)
+            };
+            btnLogout.Click += BtnLogout_Click;
+
+            header.Controls.Add(lblInfo);
+            header.Controls.Add(btnLogout);
+            this.Controls.Add(header);
+        }
+
+        private void CreateTabs()
+        {
+            tabControl1 = new TabControl
+            {
+                Location = new Point(15, 60),
+                Size = new Size(1150, 580),
+                Font = new Font("Segoe UI", 9)
+            };
+
+            // Создание вкладок
+            tabApplicants = CreateApplicantsTab();
+            tabApplications = CreateApplicationsTab();
+            tabSpecialties = CreateSpecialtiesTab();
+            tabUniversities = CreateUniversitiesTab();
+            tabStatistics = CreateStatisticsTab();
+
+            tabControl1.TabPages.AddRange(new TabPage[] { 
+                tabApplicants, tabApplications, tabSpecialties, tabUniversities, tabStatistics 
+            });
+        }
+
+        private TabPage CreateApplicantsTab()
+        {
+            var tab = new TabPage("Абитуриенты");
+            
+            Panel inputPanel = new Panel
+            {
+                Location = new Point(10, 10),
+                Size = new Size(1110, 100),
+                BorderStyle = BorderStyle.FixedSingle
+            };
+
+            int x = 10, y = 15;
+            
+            // Имя
+            Label lblFirstName = new Label { Text = "Имя:", Location = new Point(x, y), Size = new Size(40, 20) };
+            txtFirstName = new TextBox { Location = new Point(x + 45, y - 3), Size = new Size(100, 23) };
+            x += 160;
+            
+            // Фамилия
+            Label lblLastName = new Label { Text = "Фамилия:", Location = new Point(x, y), Size = new Size(60, 20) };
+            txtLastName = new TextBox { Location = new Point(x + 65, y - 3), Size = new Size(100, 23) };
+            x += 180;
+            
+            // Email
+            Label lblEmail = new Label { Text = "Email:", Location = new Point(x, y), Size = new Size(40, 20) };
+            txtEmail = new TextBox { Location = new Point(x + 45, y - 3), Size = new Size(120, 23) };
+            x += 175;
+            
+            // Телефон
+            Label lblPhone = new Label { Text = "Телефон:", Location = new Point(x, y), Size = new Size(60, 20) };
+            txtPhone = new TextBox { Location = new Point(x + 65, y - 3), Size = new Size(100, 23) };
+            
+            // Вторая строка
+            x = 10; y = 50;
+            
+            // Дата рождения
+            Label lblBirthDate = new Label { Text = "Дата рождения:", Location = new Point(x, y), Size = new Size(100, 20) };
+            dtpBirthDate = new DateTimePicker { 
+                Location = new Point(x + 105, y - 3), 
+                Size = new Size(100, 23),
+                Value = new DateTime(2000, 1, 1),
+                Format = DateTimePickerFormat.Short
+            };
+            x += 220;
+            
+            // Средний балл
+            Label lblAvgScore = new Label { Text = "Средний балл:", Location = new Point(x, y), Size = new Size(90, 20) };
+            numAvgScore = new NumericUpDown { 
+                Location = new Point(x + 95, y - 3), 
+                Size = new Size(60, 23),
+                Minimum = 0,
+                Maximum = 100,
+                DecimalPlaces = 2,
+                Value = 70
+            };
+            x += 170;
+            
+            // Тип образования
+            Label lblEducationType = new Label { Text = "Образование:", Location = new Point(x, y), Size = new Size(90, 20) };
+            cmbEducationType = new ComboBox { 
+                Location = new Point(x + 95, y - 3), 
+                Size = new Size(120, 23),
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            cmbEducationType.Items.AddRange(new string[] { "Среднее", "Среднее специальное", "Неоконченное высшее", "Высшее" });
+            cmbEducationType.SelectedIndex = 0;
+            x += 230;
+            
+            // Адрес
+            Label lblAddress = new Label { Text = "Адрес:", Location = new Point(x, y), Size = new Size(50, 20) };
+            txtAddress = new TextBox { Location = new Point(x + 55, y - 3), Size = new Size(150, 23) };
+            
+            // Кнопка добавления
+            btnAddApplicant = new Button
+            {
+                Location = new Point(950, 35),
+                Size = new Size(120, 30),
+                Text = "Добавить абитуриента",
+                BackColor = Color.FromArgb(46, 204, 113),
+                ForeColor = Color.White
+            };
+            btnAddApplicant.Click += BtnAddApplicant_Click;
+            
+            // Добавление элементов на панель
+            inputPanel.Controls.AddRange(new Control[] {
+                lblFirstName, txtFirstName, lblLastName, txtLastName, lblEmail, txtEmail,
+                lblPhone, txtPhone, lblBirthDate, dtpBirthDate, lblAvgScore, numAvgScore,
+                lblEducationType, cmbEducationType, lblAddress, txtAddress, btnAddApplicant
+            });
+
+            // DataGridView для абитуриентов
+            dataGridViewApplicants = new DataGridView
+            {
+                Location = new Point(10, 120),
+                Size = new Size(1110, 440),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect
+            };
+
+            tab.Controls.Add(inputPanel);
+            tab.Controls.Add(dataGridViewApplicants);
+            return tab;
+        }
+
+        private TabPage CreateApplicationsTab()
+        {
+            var tab = new TabPage("Заявки");
+            
+            Panel inputPanel = new Panel
+            {
+                Location = new Point(10, 10),
+                Size = new Size(1110, 80),
+                BorderStyle = BorderStyle.FixedSingle
+            };
+
+            int x = 10, y = 15;
+            
+            // Абитуриент
+            Label lblApplicant = new Label { Text = "Абитуриент:", Location = new Point(x, y), Size = new Size(80, 20) };
+            cmbApplicant = new ComboBox { 
+                Location = new Point(x + 85, y - 3), 
+                Size = new Size(150, 23),
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            x += 250;
+            
+            // Специальность
+            Label lblSpecialty = new Label { Text = "Специальность:", Location = new Point(x, y), Size = new Size(100, 20) };
+            cmbSpecialty = new ComboBox { 
+                Location = new Point(x + 105, y - 3), 
+                Size = new Size(180, 23),
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            x += 300;
+            
+            // ВУЗ
+            Label lblUniversity = new Label { Text = "ВУЗ:", Location = new Point(x, y), Size = new Size(40, 20) };
+            cmbUniversity = new ComboBox { 
+                Location = new Point(x + 45, y - 3), 
+                Size = new Size(150, 23),
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            
+            // Вторая строка
+            x = 10; y = 50;
+            
+            // Дата подачи
+            Label lblApplicationDate = new Label { Text = "Дата подачи:", Location = new Point(x, y), Size = new Size(80, 20) };
+            dtpApplicationDate = new DateTimePicker { 
+                Location = new Point(x + 85, y - 3), 
+                Size = new Size(100, 23),
+                Value = DateTime.Now,
+                Format = DateTimePickerFormat.Short
+            };
+            x += 200;
+            
+            // Статус
+            Label lblStatus = new Label { Text = "Статус:", Location = new Point(x, y), Size = new Size(50, 20) };
+            cmbStatus = new ComboBox { 
+                Location = new Point(x + 55, y - 3), 
+                Size = new Size(120, 23),
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            cmbStatus.Items.AddRange(new string[] { "Подана", "Рассмотрение", "Принята", "Отклонена", "Ожидание" });
+            cmbStatus.SelectedIndex = 0;
+            
+            // Кнопка добавления
+            btnAddApplication = new Button
+            {
+                Location = new Point(850, 15),
+                Size = new Size(120, 40),
+                Text = "Добавить заявку",
+                BackColor = Color.FromArgb(52, 152, 219),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold)
+            };
+            btnAddApplication.Click += BtnAddApplication_Click;
+            
+            // Добавление элементов на панель
+            inputPanel.Controls.AddRange(new Control[] {
+                lblApplicant, cmbApplicant, lblSpecialty, cmbSpecialty, lblUniversity, cmbUniversity,
+                lblApplicationDate, dtpApplicationDate, lblStatus, cmbStatus, btnAddApplication
+            });
+
+            // DataGridView для заявок
+            dataGridViewApplications = new DataGridView
+            {
+                Location = new Point(10, 100),
+                Size = new Size(1110, 460),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect
+            };
+
+            tab.Controls.Add(inputPanel);
+            tab.Controls.Add(dataGridViewApplications);
+            return tab;
+        }
+
+        private TabPage CreateSpecialtiesTab()
+        {
+            var tab = new TabPage("Специальности");
+            
+            Panel inputPanel = new Panel
+            {
+                Location = new Point(10, 10),
+                Size = new Size(1110, 80),
+                BorderStyle = BorderStyle.FixedSingle
+            };
+
+            int x = 10, y = 15;
+            
+            // Название специальности
+            Label lblSpecialtyName = new Label { Text = "Название:", Location = new Point(x, y), Size = new Size(70, 20) };
+            txtSpecialtyName = new TextBox { Location = new Point(x + 75, y - 3), Size = new Size(150, 23) };
+            x += 240;
+            
+            // Код специальности
+            Label lblSpecialtyCode = new Label { Text = "Код:", Location = new Point(x, y), Size = new Size(40, 20) };
+            txtSpecialtyCode = new TextBox { Location = new Point(x + 45, y - 3), Size = new Size(80, 23) };
+            x += 140;
+            
+            // Проходной балл
+            Label lblRequiredScore = new Label { Text = "Проходной балл:", Location = new Point(x, y), Size = new Size(110, 20) };
+            numRequiredScore = new NumericUpDown { 
+                Location = new Point(x + 115, y - 3), 
+                Size = new Size(60, 23),
+                Minimum = 0,
+                Maximum = 100,
+                Value = 65
+            };
+            
+            // Вторая строка
+            x = 10; y = 50;
+            
+            // Описание
+            Label lblDescription = new Label { Text = "Описание:", Location = new Point(x, y), Size = new Size(70, 20) };
+            txtDescription = new TextBox { 
+                Location = new Point(x + 75, y - 3), 
+                Size = new Size(300, 23)
+            };
+            
+            // Кнопка добавления
+            btnAddSpecialty = new Button
+            {
+                Location = new Point(850, 15),
+                Size = new Size(120, 40),
+                Text = "Добавить специальность",
+                BackColor = Color.FromArgb(155, 89, 182),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold)
+            };
+            btnAddSpecialty.Click += BtnAddSpecialty_Click;
+            
+            // Добавление элементов на панель
+            inputPanel.Controls.AddRange(new Control[] {
+                lblSpecialtyName, txtSpecialtyName, lblSpecialtyCode, txtSpecialtyCode,
+                lblRequiredScore, numRequiredScore, lblDescription, txtDescription, btnAddSpecialty
+            });
+
+            // DataGridView для специальностей
+            dataGridViewSpecialties = new DataGridView
+            {
+                Location = new Point(10, 100),
+                Size = new Size(1110, 460),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect
+            };
+
+            tab.Controls.Add(inputPanel);
+            tab.Controls.Add(dataGridViewSpecialties);
+            return tab;
+        }
+
+        private TabPage CreateUniversitiesTab()
+        {
+            var tab = new TabPage("ВУЗы");
+            
+            Panel inputPanel = new Panel
+            {
+                Location = new Point(10, 10),
+                Size = new Size(1110, 80),
+                BorderStyle = BorderStyle.FixedSingle
+            };
+
+            int x = 10, y = 15;
+            
+            // Название ВУЗа
+            Label lblUniversityName = new Label { Text = "Название ВУЗа:", Location = new Point(x, y), Size = new Size(100, 20) };
+            txtUniversityName = new TextBox { Location = new Point(x + 105, y - 3), Size = new Size(200, 23) };
+            x += 320;
+            
+            // Город
+            Label lblUniversityCity = new Label { Text = "Город:", Location = new Point(x, y), Size = new Size(50, 20) };
+            txtUniversityCity = new TextBox { Location = new Point(x + 55, y - 3), Size = new Size(120, 23) };
+            x += 190;
+            
+            // Веб-сайт
+            Label lblUniversityWebsite = new Label { Text = "Веб-сайт:", Location = new Point(x, y), Size = new Size(70, 20) };
+            txtUniversityWebsite = new TextBox { Location = new Point(x + 75, y - 3), Size = new Size(150, 23) };
+            
+            // Кнопка добавления
+            btnAddUniversity = new Button
+            {
+                Location = new Point(850, 15),
+                Size = new Size(120, 40),
+                Text = "Добавить ВУЗ",
+                BackColor = Color.FromArgb(241, 196, 15),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold)
+            };
+            btnAddUniversity.Click += BtnAddUniversity_Click;
+            
+            // Добавление элементов на панель
+            inputPanel.Controls.AddRange(new Control[] {
+                lblUniversityName, txtUniversityName, lblUniversityCity, txtUniversityCity,
+                lblUniversityWebsite, txtUniversityWebsite, btnAddUniversity
+            });
+
+            // DataGridView для ВУЗов
+            dataGridViewUniversities = new DataGridView
+            {
+                Location = new Point(10, 100),
+                Size = new Size(1110, 460),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect
+            };
+
+            tab.Controls.Add(inputPanel);
+            tab.Controls.Add(dataGridViewUniversities);
+            return tab;
+        }
+
+        private TabPage CreateStatisticsTab()
+        {
+            var tab = new TabPage("Статистика");
+            
+            Panel statsPanel = new Panel
+            {
+                Location = new Point(10, 10),
+                Size = new Size(1110, 150),
+                BorderStyle = BorderStyle.FixedSingle,
+                BackColor = Color.FromArgb(240, 240, 240)
+            };
+
+            // Заголовок
+            Label lblTitle = new Label
+            {
+                Text = "Статистика приема абитуриентов",
+                Font = new Font("Segoe UI", 14, FontStyle.Bold),
+                Location = new Point(10, 10),
+                Size = new Size(400, 30),
+                ForeColor = Color.FromArgb(52, 73, 94)
+            };
+
+            // Статистика в 2 колонки
+            int x1 = 20, x2 = 300;
+            int y = 50;
+
+            // Колонка 1
+            Label lblTotalApplicants = new Label
+            {
+                Text = "Всего абитуриентов:",
+                Location = new Point(x1, y),
+                Size = new Size(150, 25),
+                Font = new Font("Segoe UI", 10, FontStyle.Bold)
+            };
+
+            lblStatsTotalApplicants = new Label
+            {
+                Text = "0",
+                Location = new Point(x1 + 160, y),
+                Size = new Size(100, 25),
+                Font = new Font("Segoe UI", 10),
+                ForeColor = Color.Blue
+            };
+            y += 30;
+
+            Label lblTotalApplications = new Label
+            {
+                Text = "Всего заявок:",
+                Location = new Point(x1, y),
+                Size = new Size(150, 25),
+                Font = new Font("Segoe UI", 10, FontStyle.Bold)
+            };
+
+            lblStatsTotalApplications = new Label
+            {
+                Text = "0",
+                Location = new Point(x1 + 160, y),
+                Size = new Size(100, 25),
+                Font = new Font("Segoe UI", 10),
+                ForeColor = Color.Green
+            };
+            y += 30;
+
+            Label lblAvgScore = new Label
+            {
+                Text = "Средний балл:",
+                Location = new Point(x1, y),
+                Size = new Size(150, 25),
+                Font = new Font("Segoe UI", 10, FontStyle.Bold)
+            };
+
+            lblStatsAvgScore = new Label
+            {
+                Text = "0.00",
+                Location = new Point(x1 + 160, y),
+                Size = new Size(100, 25),
+                Font = new Font("Segoe UI", 10),
+                ForeColor = Color.Orange
+            };
+
+            // Колонка 2
+            y = 50;
+
+            Label lblPendingApplications = new Label
+            {
+                Text = "Заявок на рассмотрении:",
+                Location = new Point(x2, y),
+                Size = new Size(180, 25),
+                Font = new Font("Segoe UI", 10, FontStyle.Bold)
+            };
+
+            lblStatsPendingApplications = new Label
+            {
+                Text = "0",
+                Location = new Point(x2 + 185, y),
+                Size = new Size(100, 25),
+                Font = new Font("Segoe UI", 10),
+                ForeColor = Color.OrangeRed
+            };
+            y += 30;
+
+            Label lblAcceptedApplications = new Label
+            {
+                Text = "Принятых заявок:",
+                Location = new Point(x2, y),
+                Size = new Size(150, 25),
+                Font = new Font("Segoe UI", 10, FontStyle.Bold)
+            };
+
+            lblStatsAcceptedApplications = new Label
+            {
+                Text = "0",
+                Location = new Point(x2 + 155, y),
+                Size = new Size(100, 25),
+                Font = new Font("Segoe UI", 10),
+                ForeColor = Color.Green
+            };
+
+            // Кнопка обновления статистики
+            Button btnUpdateStats = new Button
+            {
+                Text = "Обновить статистику",
+                Location = new Point(800, 60),
+                Size = new Size(150, 40),
+                BackColor = Color.FromArgb(52, 152, 219),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold)
+            };
+            btnUpdateStats.Click += BtnUpdateStats_Click;
+
+            // Добавление элементов на панель
+            statsPanel.Controls.Add(lblTitle);
+            statsPanel.Controls.Add(lblTotalApplicants);
+            statsPanel.Controls.Add(lblStatsTotalApplicants);
+            statsPanel.Controls.Add(lblTotalApplications);
+            statsPanel.Controls.Add(lblStatsTotalApplications);
+            statsPanel.Controls.Add(lblAvgScore);
+            statsPanel.Controls.Add(lblStatsAvgScore);
+            statsPanel.Controls.Add(lblPendingApplications);
+            statsPanel.Controls.Add(lblStatsPendingApplications);
+            statsPanel.Controls.Add(lblAcceptedApplications);
+            statsPanel.Controls.Add(lblStatsAcceptedApplications);
+            statsPanel.Controls.Add(btnUpdateStats);
+
+            // Таблица статистики по специальностям
+            Label lblSpecialtiesStats = new Label
+            {
+                Text = "Популярность специальностей:",
+                Font = new Font("Segoe UI", 12, FontStyle.Bold),
+                Location = new Point(10, 170),
+                Size = new Size(300, 30)
+            };
+
+            dataGridViewStats = new DataGridView
+            {
+                Location = new Point(10, 200),
+                Size = new Size(1110, 360),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                ReadOnly = true
+            };
+
+            tab.Controls.Add(statsPanel);
+            tab.Controls.Add(lblSpecialtiesStats);
+            tab.Controls.Add(dataGridViewStats);
+            return tab;
+        }
+
+        private void CreateRefreshButton()
+        {
+            btnRefresh = new Button
+            {
+                Text = "Обновить все",
+                Location = new Point(15, 650),
+                Size = new Size(100, 35),
+                BackColor = Color.FromArgb(241, 196, 15),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold)
+            };
+            btnRefresh.Click += BtnRefresh_Click;
+        }
+
+        private void SetupPermissions()
+        {
+            // Упрощенная проверка прав доступа
+            if (currentRole == "Консультант")
+            {
+                // Для консультанта оставляем только абитуриентов и заявки
+                tabControl1.TabPages.Clear();
+                tabControl1.TabPages.AddRange(new TabPage[] { tabApplicants, tabApplications, tabStatistics });
+            }
+        }
+
+        private void LoadInitialData()
+        {
+            try
+            {
+                dbHelper = new DatabaseHelper();
+                LoadComboBoxData();
+                RefreshAllData();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка инициализации: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void LoadComboBoxData()
+        {
+            try
+            {
+                // Загрузка абитуриентов
+                DataTable applicants = dbHelper.ExecuteQuery(@"
+                    SELECT ApplicantID, CONCAT(FirstName, ' ', LastName) as FullName 
+                    FROM applicants 
+                    ORDER BY LastName, FirstName");
+                cmbApplicant.DataSource = applicants;
+                cmbApplicant.DisplayMember = "FullName";
+                cmbApplicant.ValueMember = "ApplicantID";
+
+                // Загрузка специальностей
+                DataTable specialties = dbHelper.ExecuteQuery(@"
+                    SELECT SpecialtyID, CONCAT(SpecialtyCode, ' - ', SpecialtyName) as SpecialtyInfo 
+                    FROM specialties 
+                    ORDER BY SpecialtyCode");
+                cmbSpecialty.DataSource = specialties;
+                cmbSpecialty.DisplayMember = "SpecialtyInfo";
+                cmbSpecialty.ValueMember = "SpecialtyID";
+
+                // Загрузка ВУЗов
+                DataTable universities = dbHelper.ExecuteQuery(@"
+                    SELECT UniversityID, UniversityName 
+                    FROM universities 
+                    ORDER BY UniversityName");
+                cmbUniversity.DataSource = universities;
+                cmbUniversity.DisplayMember = "UniversityName";
+                cmbUniversity.ValueMember = "UniversityID";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка загрузки данных: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void RefreshAllData()
+        {
+            try
+            {
+                LoadApplicants();
+                LoadApplications();
+                LoadSpecialties();
+                LoadUniversities();
+                UpdateStatistics();
+                LoadSpecialtiesStatistics();
+                LoadComboBoxData();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка обновления данных: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void LoadApplicants()
+        {
+            string query = @"
+                SELECT 
+                    ApplicantID as 'ID',
+                    FirstName as 'Имя',
+                    LastName as 'Фамилия',
+                    Email as 'Email',
+                    Phone as 'Телефон',
+                    DATE_FORMAT(BirthDate, '%d.%m.%Y') as 'Дата рождения',
+                    AverageScore as 'Средний балл',
+                    EducationType as 'Образование',
+                    Address as 'Адрес',
+                    DATE_FORMAT(CreatedAt, '%d.%m.%Y') as 'Дата регистрации'
+                FROM applicants 
+                ORDER BY LastName, FirstName";
+            dataGridViewApplicants.DataSource = dbHelper.ExecuteQuery(query);
+        }
+
+        private void LoadApplications()
+        {
+            string query = @"
+                SELECT 
+                    a.ApplicationID as 'ID',
+                    CONCAT(app.FirstName, ' ', app.LastName) as 'Абитуриент',
+                    s.SpecialtyName as 'Специальность',
+                    u.UniversityName as 'ВУЗ',
+                    DATE_FORMAT(a.ApplicationDate, '%d.%m.%Y') as 'Дата подачи',
+                    a.Status as 'Статус',
+                    a.Comments as 'Комментарии',
+                    DATE_FORMAT(a.CreatedAt, '%d.%m.%Y %H:%i') as 'Дата создания'
+                FROM applications a
+                JOIN applicants app ON a.ApplicantID = app.ApplicantID
+                JOIN specialties s ON a.SpecialtyID = s.SpecialtyID
+                JOIN universities u ON a.UniversityID = u.UniversityID
+                ORDER BY a.ApplicationDate DESC";
+            dataGridViewApplications.DataSource = dbHelper.ExecuteQuery(query);
+        }
+
+        private void LoadSpecialties()
+        {
+            string query = @"
+                SELECT 
+                    SpecialtyID as 'ID',
+                    SpecialtyCode as 'Код',
+                    SpecialtyName as 'Название',
+                    RequiredScore as 'Проходной балл',
+                    Description as 'Описание',
+                    DATE_FORMAT(CreatedAt, '%d.%m.%Y') as 'Дата создания'
+                FROM specialties 
+                ORDER BY SpecialtyCode";
+            dataGridViewSpecialties.DataSource = dbHelper.ExecuteQuery(query);
+        }
+
+        private void LoadUniversities()
+        {
+            string query = @"
+                SELECT 
+                    UniversityID as 'ID',
+                    UniversityName as 'Название',
+                    City as 'Город',
+                    Website as 'Веб-сайт',
+                    Address as 'Адрес',
+                    Phone as 'Телефон',
+                    DATE_FORMAT(CreatedAt, '%d.%m.%Y') as 'Дата создания'
+                FROM universities 
+                ORDER BY UniversityName";
+            dataGridViewUniversities.DataSource = dbHelper.ExecuteQuery(query);
+        }
+
+        private void UpdateStatistics()
+        {
+            try
+            {
+                // Общее количество абитуриентов
+                DataTable totalApplicantsDt = dbHelper.ExecuteQuery("SELECT COUNT(*) FROM applicants");
+                lblStatsTotalApplicants.Text = totalApplicantsDt.Rows[0][0].ToString();
+
+                // Общее количество заявок
+                DataTable totalApplicationsDt = dbHelper.ExecuteQuery("SELECT COUNT(*) FROM applications");
+                lblStatsTotalApplications.Text = totalApplicationsDt.Rows[0][0].ToString();
+
+                // Заявки на рассмотрении
+                DataTable pendingApplicationsDt = dbHelper.ExecuteQuery(
+                    "SELECT COUNT(*) FROM applications WHERE Status IN ('Подана', 'Рассмотрение', 'Ожидание')");
+                lblStatsPendingApplications.Text = pendingApplicationsDt.Rows[0][0].ToString();
+
+                // Принятые заявки
+                DataTable acceptedApplicationsDt = dbHelper.ExecuteQuery(
+                    "SELECT COUNT(*) FROM applications WHERE Status = 'Принята'");
+                lblStatsAcceptedApplications.Text = acceptedApplicationsDt.Rows[0][0].ToString();
+
+                // Средний балл абитуриентов
+                DataTable avgScoreDt = dbHelper.ExecuteQuery("SELECT AVG(AverageScore) FROM applicants");
+                if (avgScoreDt.Rows[0][0] != DBNull.Value)
+                {
+                    decimal avgScore = Convert.ToDecimal(avgScoreDt.Rows[0][0]);
+                    lblStatsAvgScore.Text = avgScore.ToString("F2");
+                }
+                else
+                {
+                    lblStatsAvgScore.Text = "0.00";
+                }
+            }
+            catch { /* Игнорируем ошибки статистики */ }
+        }
+
+        private void LoadSpecialtiesStatistics()
+        {
+            string query = @"
+                SELECT 
+                    s.SpecialtyName as 'Специальность',
+                    s.RequiredScore as 'Проходной балл',
+                    COUNT(a.ApplicationID) as 'Количество заявок',
+                    SUM(CASE WHEN a.Status = 'Принята' THEN 1 ELSE 0 END) as 'Принято',
+                    AVG(app.AverageScore) as 'Средний балл заявителей'
+                FROM specialties s
+                LEFT JOIN applications a ON s.SpecialtyID = a.SpecialtyID
+                LEFT JOIN applicants app ON a.ApplicantID = app.ApplicantID
+                GROUP BY s.SpecialtyID, s.SpecialtyName, s.RequiredScore
+                ORDER BY COUNT(a.ApplicationID) DESC";
+            dataGridViewStats.DataSource = dbHelper.ExecuteQuery(query);
+        }
+
+        // ===== ОБРАБОТЧИКИ СОБЫТИЙ =====
+
+        private void BtnLogout_Click(object sender, EventArgs e)
+        {
+            if (MessageBox.Show("Вы уверены, что хотите выйти?", "Подтверждение", 
+                MessageBoxButtons.YesNo) == DialogResult.Yes)
+            {
+                this.Close();
+            }
+        }
+
+        private void BtnAddApplicant_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(txtFirstName.Text) || string.IsNullOrWhiteSpace(txtLastName.Text))
+            {
+                MessageBox.Show("Введите имя и фамилию абитуриента", "Ошибка");
+                return;
+            }
+
+            try
+            {
+                string query = @"
+                    INSERT INTO applicants (FirstName, LastName, Email, Phone, BirthDate, AverageScore, EducationType, Address)
+                    VALUES (@FirstName, @LastName, @Email, @Phone, @BirthDate, @AverageScore, @EducationType, @Address)";
+                
+                dbHelper.ExecuteNonQuery(query,
+                    new MySqlParameter("@FirstName", txtFirstName.Text),
+                    new MySqlParameter("@LastName", txtLastName.Text),
+                    new MySqlParameter("@Email", txtEmail.Text),
+                    new MySqlParameter("@Phone", txtPhone.Text),
+                    new MySqlParameter("@BirthDate", dtpBirthDate.Value),
+                    new MySqlParameter("@AverageScore", numAvgScore.Value),
+                    new MySqlParameter("@EducationType", cmbEducationType.Text),
+                    new MySqlParameter("@Address", txtAddress.Text));
+                
+                MessageBox.Show("Абитуриент успешно добавлен", "Успех");
+                
+                // Очистка полей
+                txtFirstName.Text = "";
+                txtLastName.Text = "";
+                txtEmail.Text = "";
+                txtPhone.Text = "";
+                txtAddress.Text = "";
+                numAvgScore.Value = 70;
+                
+                LoadApplicants();
+                LoadComboBoxData();
+                UpdateStatistics();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка добавления абитуриента: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void BtnAddApplication_Click(object sender, EventArgs e)
+        {
+            if (cmbApplicant.SelectedIndex == -1 || cmbSpecialty.SelectedIndex == -1 || cmbUniversity.SelectedIndex == -1)
+            {
+                MessageBox.Show("Выберите абитуриента, специальность и ВУЗ", "Ошибка");
+                return;
+            }
+
+            try
+            {
+                string query = @"
+                    INSERT INTO applications (ApplicantID, SpecialtyID, UniversityID, ApplicationDate, Status)
+                    VALUES (@ApplicantID, @SpecialtyID, @UniversityID, @ApplicationDate, @Status)";
+                
+                dbHelper.ExecuteNonQuery(query,
+                    new MySqlParameter("@ApplicantID", cmbApplicant.SelectedValue),
+                    new MySqlParameter("@SpecialtyID", cmbSpecialty.SelectedValue),
+                    new MySqlParameter("@UniversityID", cmbUniversity.SelectedValue),
+                    new MySqlParameter("@ApplicationDate", dtpApplicationDate.Value),
+                    new MySqlParameter("@Status", cmbStatus.Text));
+                
+                MessageBox.Show("Заявка успешно добавлена", "Успех");
+                LoadApplications();
+                UpdateStatistics();
+                LoadSpecialtiesStatistics();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка добавления заявки: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void BtnAddSpecialty_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(txtSpecialtyName.Text) || string.IsNullOrWhiteSpace(txtSpecialtyCode.Text))
+            {
+                MessageBox.Show("Введите название и код специальности", "Ошибка");
+                return;
+            }
+
+            try
+            {
+                string query = @"
+                    INSERT INTO specialties (SpecialtyName, SpecialtyCode, RequiredScore, Description)
+                    VALUES (@SpecialtyName, @SpecialtyCode, @RequiredScore, @Description)";
+                
+                dbHelper.ExecuteNonQuery(query,
+                    new MySqlParameter("@SpecialtyName", txtSpecialtyName.Text),
+                    new MySqlParameter("@SpecialtyCode", txtSpecialtyCode.Text),
+                    new MySqlParameter("@RequiredScore", numRequiredScore.Value),
+                    new MySqlParameter("@Description", txtDescription.Text));
+                
+                MessageBox.Show("Специальность успешно добавлена", "Успех");
+                
+                // Очистка полей
+                txtSpecialtyName.Text = "";
+                txtSpecialtyCode.Text = "";
+                txtDescription.Text = "";
+                numRequiredScore.Value = 65;
+                
+                LoadSpecialties();
+                LoadComboBoxData();
+                LoadSpecialtiesStatistics();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка добавления специальности: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void BtnAddUniversity_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(txtUniversityName.Text))
+            {
+                MessageBox.Show("Введите название ВУЗа", "Ошибка");
+                return;
+            }
+
+            try
+            {
+                string query = @"
+                    INSERT INTO universities (UniversityName, City, Website)
+                    VALUES (@UniversityName, @City, @Website)";
+                
+                dbHelper.ExecuteNonQuery(query,
+                    new MySqlParameter("@UniversityName", txtUniversityName.Text),
+                    new MySqlParameter("@City", txtUniversityCity.Text),
+                    new MySqlParameter("@Website", txtUniversityWebsite.Text));
+                
+                MessageBox.Show("ВУЗ успешно добавлен", "Успех");
+                
+                // Очистка полей
+                txtUniversityName.Text = "";
+                txtUniversityCity.Text = "";
+                txtUniversityWebsite.Text = "";
+                
+                LoadUniversities();
+                LoadComboBoxData();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка добавления ВУЗа: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void BtnUpdateStats_Click(object sender, EventArgs e)
+        {
+            UpdateStatistics();
+            LoadSpecialtiesStatistics();
+            MessageBox.Show("Статистика обновлена", "Информация");
+        }
+
+        private void BtnRefresh_Click(object sender, EventArgs e)
+        {
+            RefreshAllData();
+            MessageBox.Show("Все данные обновлены", "Информация");
+        }
+
+        // Контекстные меню для DataGridView
+        private void AddContextMenus()
+        {
+            // Контекстное меню для абитуриентов
+            ContextMenuStrip applicantsMenu = new ContextMenuStrip();
+            applicantsMenu.Items.Add("Редактировать", null, EditApplicant_Click);
+            applicantsMenu.Items.Add("Добавить заявку", null, AddApplicationForApplicant_Click);
+            applicantsMenu.Items.Add("Показать заявки", null, ShowApplicantApplications_Click);
+            dataGridViewApplicants.ContextMenuStrip = applicantsMenu;
+
+            // Контекстное меню для заявок
+            ContextMenuStrip applicationsMenu = new ContextMenuStrip();
+            applicationsMenu.Items.Add("Изменить статус", null, ChangeApplicationStatus_Click);
+            applicationsMenu.Items.Add("Добавить комментарий", null, AddCommentToApplication_Click);
+            applicationsMenu.Items.Add("Удалить заявку", null, DeleteApplication_Click);
+            dataGridViewApplications.ContextMenuStrip = applicationsMenu;
+
+            // Контекстное меню для специальностей
+            if (currentRole == "Администратор" || currentRole == "Менеджер")
+            {
+                ContextMenuStrip specialtiesMenu = new ContextMenuStrip();
+                specialtiesMenu.Items.Add("Редактировать", null, EditSpecialty_Click);
+                specialtiesMenu.Items.Add("Удалить", null, DeleteSpecialty_Click);
+                dataGridViewSpecialties.ContextMenuStrip = specialtiesMenu;
+
+                ContextMenuStrip universitiesMenu = new ContextMenuStrip();
+                universitiesMenu.Items.Add("Редактировать", null, EditUniversity_Click);
+                universitiesMenu.Items.Add("Удалить", null, DeleteUniversity_Click);
+                dataGridViewUniversities.ContextMenuStrip = universitiesMenu;
+            }
+        }
+
+        private void EditApplicant_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewApplicants.SelectedRows.Count > 0)
+            {
+                int applicantId = Convert.ToInt32(dataGridViewApplicants.SelectedRows[0].Cells["ID"].Value);
+                using (var form = new ApplicantForm(applicantId, dbHelper))
+                {
+                    if (form.ShowDialog() == DialogResult.OK)
+                    {
+                        LoadApplicants();
+                        LoadComboBoxData();
+                        UpdateStatistics();
+                    }
+                }
+            }
+        }
+
+        private void AddApplicationForApplicant_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewApplicants.SelectedRows.Count > 0)
+            {
+                int applicantId = Convert.ToInt32(dataGridViewApplicants.SelectedRows[0].Cells["ID"].Value);
+                string applicantName = dataGridViewApplicants.SelectedRows[0].Cells["Имя"].Value.ToString() + " " +
+                                      dataGridViewApplicants.SelectedRows[0].Cells["Фамилия"].Value.ToString();
+                
+                // Переходим на вкладку заявок
+                tabControl1.SelectedTab = tabApplications;
+                
+                // Находим и выбираем абитуриента в ComboBox
+                for (int i = 0; i < cmbApplicant.Items.Count; i++)
+                {
+                    DataRowView row = cmbApplicant.Items[i] as DataRowView;
+                    if (row != null && Convert.ToInt32(row["ApplicantID"]) == applicantId)
+                    {
+                        cmbApplicant.SelectedIndex = i;
+                        MessageBox.Show($"Выбран абитуриент: {applicantName}\nТеперь выберите специальность и ВУЗ.", 
+                                      "Абитуриент выбран");
+                        break;
+                    }
+                }
+            }
+        }
+
+        private void ShowApplicantApplications_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewApplicants.SelectedRows.Count > 0)
+            {
+                int applicantId = Convert.ToInt32(dataGridViewApplicants.SelectedRows[0].Cells["ID"].Value);
+                string applicantName = dataGridViewApplicants.SelectedRows[0].Cells["Имя"].Value.ToString() + " " +
+                                      dataGridViewApplicants.SelectedRows[0].Cells["Фамилия"].Value.ToString();
+                
+                // Загрузка заявок конкретного абитуриента
+                string query = @"
+                    SELECT 
+                        a.ApplicationID as 'ID',
+                        s.SpecialtyName as 'Специальность',
+                        u.UniversityName as 'ВУЗ',
+                        DATE_FORMAT(a.ApplicationDate, '%d.%m.%Y') as 'Дата подачи',
+                        a.Status as 'Статус',
+                        a.Comments as 'Комментарии'
+                    FROM applications a
+                    JOIN specialties s ON a.SpecialtyID = s.SpecialtyID
+                    JOIN universities u ON a.UniversityID = u.UniversityID
+                    WHERE a.ApplicantID = @ApplicantID
+                    ORDER BY a.ApplicationDate DESC";
+                
+                DataTable applications = dbHelper.ExecuteQuery(query, 
+                    new MySqlParameter("@ApplicantID", applicantId));
+                
+                if (applications.Rows.Count > 0)
+                {
+                    string message = $"Заявки абитуриента {applicantName}:\n\n";
+                    foreach (DataRow row in applications.Rows)
+                    {
+                        message += $"• {row["Специальность"]} в {row["ВУЗ"]} - {row["Статус"]} ({row["Дата подачи"]})\n";
+                    }
+                    MessageBox.Show(message, "Заявки абитуриента");
+                }
+                else
+                {
+                    MessageBox.Show($"У абитуриента {applicantName} нет заявок", "Информация");
+                }
+            }
+        }
+
+        private void ChangeApplicationStatus_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewApplications.SelectedRows.Count > 0)
+            {
+                int applicationId = Convert.ToInt32(dataGridViewApplications.SelectedRows[0].Cells["ID"].Value);
+                string currentStatus = dataGridViewApplications.SelectedRows[0].Cells["Статус"].Value.ToString();
+                
+                using (var form = new StatusChangeForm(applicationId, currentStatus, dbHelper))
+                {
+                    if (form.ShowDialog() == DialogResult.OK)
+                    {
+                        LoadApplications();
+                        UpdateStatistics();
+                        LoadSpecialtiesStatistics();
+                    }
+                }
+            }
+        }
+
+        private void AddCommentToApplication_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewApplications.SelectedRows.Count > 0)
+            {
+                int applicationId = Convert.ToInt32(dataGridViewApplications.SelectedRows[0].Cells["ID"].Value);
+                string currentComment = dataGridViewApplications.SelectedRows[0].Cells["Комментарии"].Value?.ToString() ?? "";
+                
+                using (var commentForm = new CommentForm(currentComment))
+                {
+                    if (commentForm.ShowDialog() == DialogResult.OK)
+                    {
+                        string newComment = commentForm.CommentText;
+                        
+                        if (!string.IsNullOrWhiteSpace(newComment))
+                        {
+                            try
+                            {
+                                string query = "UPDATE applications SET Comments = @Comments WHERE ApplicationID = @ApplicationID";
+                                dbHelper.ExecuteNonQuery(query,
+                                    new MySqlParameter("@Comments", newComment),
+                                    new MySqlParameter("@ApplicationID", applicationId));
+                                
+                                MessageBox.Show("Комментарий добавлен", "Успех");
+                                LoadApplications();
+                            }
+                            catch (Exception ex)
+                            {
+                                MessageBox.Show("Ошибка добавления комментария: " + ex.Message, "Ошибка");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private void DeleteApplication_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewApplications.SelectedRows.Count > 0)
+            {
+                if (MessageBox.Show("Вы уверены, что хотите удалить эту заявку?", 
+                    "Подтверждение удаления", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+                {
+                    try
+                    {
+                        int applicationId = Convert.ToInt32(dataGridViewApplications.SelectedRows[0].Cells["ID"].Value);
+                        string query = "DELETE FROM applications WHERE ApplicationID = @ApplicationID";
+                        dbHelper.ExecuteNonQuery(query, new MySqlParameter("@ApplicationID", applicationId));
+                        
+                        LoadApplications();
+                        UpdateStatistics();
+                        LoadSpecialtiesStatistics();
+                        
+                        MessageBox.Show("Заявка удалена", "Успех");
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Ошибка удаления заявки: " + ex.Message, "Ошибка");
+                    }
+                }
+            }
+        }
+
+        private void EditSpecialty_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewSpecialties.SelectedRows.Count > 0)
+            {
+                int specialtyId = Convert.ToInt32(dataGridViewSpecialties.SelectedRows[0].Cells["ID"].Value);
+                using (var form = new SpecialtyForm(specialtyId, dbHelper))
+                {
+                    if (form.ShowDialog() == DialogResult.OK)
+                    {
+                        LoadSpecialties();
+                        LoadComboBoxData();
+                        LoadSpecialtiesStatistics();
+                    }
+                }
+            }
+        }
+
+        private void DeleteSpecialty_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewSpecialties.SelectedRows.Count > 0)
+            {
+                if (MessageBox.Show("Вы уверены, что хотите удалить эту специальность?", 
+                    "Подтверждение удаления", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+                {
+                    try
+                    {
+                        int specialtyId = Convert.ToInt32(dataGridViewSpecialties.SelectedRows[0].Cells["ID"].Value);
+                        string query = "DELETE FROM specialties WHERE SpecialtyID = @SpecialtyID";
+                        dbHelper.ExecuteNonQuery(query, new MySqlParameter("@SpecialtyID", specialtyId));
+                        
+                        LoadSpecialties();
+                        LoadComboBoxData();
+                        LoadSpecialtiesStatistics();
+                        
+                        MessageBox.Show("Специальность удалена", "Успех");
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Ошибка удаления специальности: " + ex.Message, "Ошибка");
+                    }
+                }
+            }
+        }
+
+        private void EditUniversity_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewUniversities.SelectedRows.Count > 0)
+            {
+                int universityId = Convert.ToInt32(dataGridViewUniversities.SelectedRows[0].Cells["ID"].Value);
+                using (var form = new UniversityForm(universityId, dbHelper))
+                {
+                    if (form.ShowDialog() == DialogResult.OK)
+                    {
+                        LoadUniversities();
+                        LoadComboBoxData();
+                    }
+                }
+            }
+        }
+
+        private void DeleteUniversity_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewUniversities.SelectedRows.Count > 0)
+            {
+                if (MessageBox.Show("Вы уверены, что хотите удалить этот ВУЗ?", 
+                    "Подтверждение удаления", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+                {
+                    try
+                    {
+                        int universityId = Convert.ToInt32(dataGridViewUniversities.SelectedRows[0].Cells["ID"].Value);
+                        string query = "DELETE FROM universities WHERE UniversityID = @UniversityID";
+                        dbHelper.ExecuteNonQuery(query, new MySqlParameter("@UniversityID", universityId));
+                        
+                        LoadUniversities();
+                        LoadComboBoxData();
+                        
+                        MessageBox.Show("ВУЗ удален", "Успех");
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Ошибка удаления ВУЗа: " + ex.Message, "Ошибка");
+                    }
+                }
+            }
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            base.OnFormClosing(e);
+            if (e.CloseReason == CloseReason.UserClosing)
+            {
+                if (MessageBox.Show("Закрыть приложение?", "Подтверждение", 
+                    MessageBoxButtons.YesNo) == DialogResult.No)
+                {
+                    e.Cancel = true;
+                }
+            }
+        }
+
+        // Реализация IDisposable для освобождения ресурсов
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                if (dbHelper != null)
+                {
+                    dbHelper.Dispose();
+                    dbHelper = null;
+                }
+            }
+            base.Dispose(disposing);
+        }
+    }
+}
