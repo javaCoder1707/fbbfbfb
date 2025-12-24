@@ -1,0 +1,378 @@
+using System;
+using System.Data;
+using System.Drawing;
+using System.Windows.Forms;
+using MySql.Data.MySqlClient;
+
+namespace AutoSalonApp
+{
+    public partial class MainForm : Form
+    {
+        private DatabaseHelper dbHelper;
+        private TabControl tabControl1;
+        
+        private TabPage tabBrands;
+        private TabPage tabCars;
+        private TabPage tabEmployees;
+        private TabPage tabCustomers;
+        private TabPage tabSales;
+        private TabPage tabStatistics;
+        private TabPage tabUsers;
+        
+        private DataGridView dataGridViewBrands;
+        private DataGridView dataGridViewCars;
+        private DataGridView dataGridViewEmployees;
+        private DataGridView dataGridViewCustomers;
+        private DataGridView dataGridViewSales;
+        private DataGridView dataGridViewUsers;
+        
+        private TextBox txtBrandName;
+        private TextBox txtCountry;
+        private Button btnAddBrand;
+        
+        private ComboBox cmbBrands;
+        private TextBox txtModel;
+        private TextBox txtColor;
+        private TextBox txtVIN;
+        private NumericUpDown numYear;
+        private NumericUpDown numPrice;
+        private Button btnAddCar;
+        private Button btnSearchCars;
+        private TextBox txtSearchCar;
+        
+        private ComboBox cmbCar;
+        private ComboBox cmbCustomer;
+        private ComboBox cmbEmployee;
+        private DateTimePicker dtpSaleDate;
+        private NumericUpDown numSalePrice;
+        private Button btnAddSale;
+        
+        private Button btnAddUser;
+        private Button btnEditUser;
+        private Button btnDeleteUser;
+        private Button btnRefresh;
+        private Button btnLogout;
+        
+        private Label lblUserInfo;
+        private string currentUsername;
+        private string currentRole;
+        private string currentFullName;
+        
+        private Label lblStatsTotalCars;
+        private Label lblStatsAvailableCars;
+        private Label lblStatsTotalSales;
+        private Label lblStatsTotalRevenue;
+
+        public MainForm(string username, string role, string fullName)
+        {
+            currentUsername = username;
+            currentRole = role;
+            currentFullName = fullName;
+            
+            InitializeComponent();
+            try
+            {
+                dbHelper = new DatabaseHelper();
+                LoadComboBoxData();
+                RefreshAllData();
+                SetupPermissions();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка инициализации: " + ex.Message, "Ошибка");
+            }
+        }
+
+        private void InitializeComponent()
+        {
+            this.SuspendLayout();
+            this.Text = $"Автосалон - {currentFullName} ({currentRole})";
+            this.Size = new Size(1300, 800);
+            this.StartPosition = FormStartPosition.CenterScreen;
+            this.Font = new Font("Segoe UI", 9);
+            this.FormClosing += MainForm_FormClosing;
+
+            CreateUserInfoPanel();
+            CreateTabControl();
+            CreateBrandsTab();
+            CreateCarsTab();
+            CreateEmployeesTab();
+            CreateCustomersTab();
+            CreateSalesTab();
+            CreateStatisticsTab();
+            
+            if (currentRole == "Администратор")
+            {
+                CreateUsersTab();
+            }
+            
+            CreateRefreshButton();
+
+            this.Controls.Add(lblUserInfo);
+            this.Controls.Add(tabControl1);
+            this.Controls.Add(btnRefresh);
+            this.Controls.Add(btnLogout);
+            this.ResumeLayout(false);
+        }
+
+        private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            if (MessageBox.Show("Вы уверены, что хотите выйти?", "Подтверждение выхода",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.No)
+            {
+                e.Cancel = true;
+            }
+        }
+
+        private void CreateUserInfoPanel()
+        {
+            Panel userPanel = new Panel();
+            userPanel.Location = new Point(10, 10);
+            userPanel.Size = new Size(1260, 40);
+            userPanel.BorderStyle = BorderStyle.FixedSingle;
+            userPanel.BackColor = Color.FromArgb(240, 240, 240);
+
+            lblUserInfo = new Label();
+            lblUserInfo.Text = $"Пользователь: {currentFullName} | Роль: {currentRole} | Время входа: {DateTime.Now:HH:mm:ss}";
+            lblUserInfo.Location = new Point(10, 10);
+            lblUserInfo.Size = new Size(800, 20);
+            lblUserInfo.Font = new Font("Segoe UI", 10, FontStyle.Bold);
+            lblUserInfo.ForeColor = Color.FromArgb(52, 152, 219);
+
+            btnLogout = new Button();
+            btnLogout.Text = "Выйти";
+            btnLogout.Location = new Point(1150, 5);
+            btnLogout.Size = new Size(100, 30);
+            btnLogout.BackColor = Color.FromArgb(231, 76, 60);
+            btnLogout.ForeColor = Color.White;
+            btnLogout.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            btnLogout.Click += BtnLogout_Click;
+
+            userPanel.Controls.Add(lblUserInfo);
+            userPanel.Controls.Add(btnLogout);
+            
+            this.Controls.Add(userPanel);
+        }
+
+        private void BtnLogout_Click(object sender, EventArgs e)
+        {
+            if (MessageBox.Show("Вы уверены, что хотите выйти из системы?", "Выход",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            {
+                this.Close();
+            }
+        }
+
+        private void SetupPermissions()
+        {
+            // Настройка прав доступа в зависимости от роли
+            switch (currentRole)
+            {
+                case "Администратор":
+                    // Полный доступ ко всем вкладкам
+                    break;
+                    
+                case "Менеджер":
+                    // Менеджер не может управлять пользователями
+                    tabControl1.TabPages.Remove(tabUsers);
+                    break;
+                    
+                case "Консультант":
+                    // Консультант может только просматривать авто и оформлять продажи
+                    tabControl1.TabPages.Remove(tabBrands);
+                    tabControl1.TabPages.Remove(tabEmployees);
+                    tabControl1.TabPages.Remove(tabCustomers);
+                    tabControl1.TabPages.Remove(tabStatistics);
+                    tabControl1.TabPages.Remove(tabUsers);
+                    
+                    // Ограничиваем функционал
+                    if (tabCars.Controls.Count > 0)
+                    {
+                        Panel carsPanel = (Panel)tabCars.Controls[0];
+                        foreach (Control ctrl in carsPanel.Controls)
+                        {
+                            if (ctrl is Button)
+                            {
+                                ctrl.Enabled = false;
+                            }
+                        }
+                    }
+                    break;
+            }
+        }
+
+        private void CreateTabControl()
+        {
+            tabControl1 = new TabControl();
+            tabControl1.Location = new Point(15, 60);
+            tabControl1.Size = new Size(1250, 650);
+            tabControl1.Font = new Font("Segoe UI", 9);
+
+            tabBrands = new TabPage("Марки");
+            tabCars = new TabPage("Автомобили");
+            tabEmployees = new TabPage("Сотрудники");
+            tabCustomers = new TabPage("Покупатели");
+            tabSales = new TabPage("Продажи");
+            tabStatistics = new TabPage("Статистика");
+
+            tabControl1.Controls.Add(tabBrands);
+            tabControl1.Controls.Add(tabCars);
+            tabControl1.Controls.Add(tabEmployees);
+            tabControl1.Controls.Add(tabCustomers);
+            tabControl1.Controls.Add(tabSales);
+            tabControl1.Controls.Add(tabStatistics);
+        }
+
+        private void CreateBrandsTab()
+        {
+            Panel inputPanel = new Panel();
+            inputPanel.Location = new Point(10, 10);
+            inputPanel.Size = new Size(1200, 60);
+            inputPanel.BorderStyle = BorderStyle.FixedSingle;
+
+            Label lblBrandName = new Label();
+            lblBrandName.Text = "Название марки:";
+            lblBrandName.Location = new Point(10, 20);
+            lblBrandName.Size = new Size(100, 20);
+
+            Label lblCountry = new Label();
+            lblCountry.Text = "Страна:";
+            lblCountry.Location = new Point(220, 20);
+            lblCountry.Size = new Size(50, 20);
+
+            txtBrandName = new TextBox();
+            txtBrandName.Location = new Point(115, 17);
+            txtBrandName.Size = new Size(100, 23);
+
+            txtCountry = new TextBox();
+            txtCountry.Location = new Point(275, 17);
+            txtCountry.Size = new Size(100, 23);
+
+            btnAddBrand = new Button();
+            btnAddBrand.Location = new Point(390, 15);
+            btnAddBrand.Size = new Size(100, 27);
+            btnAddBrand.Text = "Добавить марку";
+            btnAddBrand.Click += BtnAddBrand_Click;
+
+            inputPanel.Controls.Add(lblBrandName);
+            inputPanel.Controls.Add(lblCountry);
+            inputPanel.Controls.Add(txtBrandName);
+            inputPanel.Controls.Add(txtCountry);
+            inputPanel.Controls.Add(btnAddBrand);
+
+            dataGridViewBrands = new DataGridView();
+            dataGridViewBrands.Location = new Point(10, 80);
+            dataGridViewBrands.Size = new Size(1200, 530);
+            dataGridViewBrands.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dataGridViewBrands.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+
+            tabBrands.Controls.Add(inputPanel);
+            tabBrands.Controls.Add(dataGridViewBrands);
+        }
+
+        private void CreateCarsTab()
+        {
+            Panel inputPanel = new Panel();
+            inputPanel.Location = new Point(10, 10);
+            inputPanel.Size = new Size(1200, 80);
+            inputPanel.BorderStyle = BorderStyle.FixedSingle;
+
+            Label lblBrand = new Label();
+            lblBrand.Text = "Марка:";
+            lblBrand.Location = new Point(10, 15);
+            lblBrand.Size = new Size(45, 20);
+
+            Label lblModel = new Label();
+            lblModel.Text = "Модель:";
+            lblModel.Location = new Point(10, 45);
+            lblModel.Size = new Size(45, 20);
+
+            Label lblYear = new Label();
+            lblYear.Text = "Год:";
+            lblYear.Location = new Point(180, 15);
+            lblYear.Size = new Size(35, 20);
+
+            Label lblColor = new Label();
+            lblColor.Text = "Цвет:";
+            lblColor.Location = new Point(180, 45);
+            lblColor.Size = new Size(40, 20);
+
+            Label lblPrice = new Label();
+            lblPrice.Text = "Цена:";
+            lblPrice.Location = new Point(350, 15);
+            lblPrice.Size = new Size(40, 20);
+
+            Label lblVIN = new Label();
+            lblVIN.Text = "VIN:";
+            lblVIN.Location = new Point(350, 45);
+            lblVIN.Size = new Size(35, 20);
+
+            cmbBrands = new ComboBox();
+            cmbBrands.Location = new Point(60, 12);
+            cmbBrands.Size = new Size(110, 23);
+            cmbBrands.DropDownStyle = ComboBoxStyle.DropDownList;
+
+            txtModel = new TextBox();
+            txtModel.Location = new Point(60, 42);
+            txtModel.Size = new Size(110, 23);
+
+            numYear = new NumericUpDown();
+            numYear.Location = new Point(220, 12);
+            numYear.Size = new Size(60, 23);
+            numYear.Minimum = 2000;
+            numYear.Maximum = 2030;
+            numYear.Value = 2024;
+
+            txtColor = new TextBox();
+            txtColor.Location = new Point(220, 42);
+            txtColor.Size = new Size(110, 23);
+
+            numPrice = new NumericUpDown();
+            numPrice.Location = new Point(395, 12);
+            numPrice.Size = new Size(90, 23);
+            numPrice.Minimum = 0;
+            numPrice.Maximum = 100000000;
+            numPrice.Value = 1000000;
+
+            txtVIN = new TextBox();
+            txtVIN.Location = new Point(395, 42);
+            txtVIN.Size = new Size(120, 23);
+
+            btnAddCar = new Button();
+            btnAddCar.Location = new Point(530, 15);
+            btnAddCar.Size = new Size(100, 50);
+            btnAddCar.Text = "Добавить авто";
+            btnAddCar.Click += BtnAddCar_Click;
+
+            Panel searchPanel = new Panel();
+            searchPanel.Location = new Point(650, 15);
+            searchPanel.Size = new Size(400, 50);
+
+            Label lblSearch = new Label();
+            lblSearch.Text = "Поиск:";
+            lblSearch.Location = new Point(5, 17);
+            lblSearch.Size = new Size(50, 20);
+
+            txtSearchCar = new TextBox();
+            txtSearchCar.Location = new Point(60, 14);
+            txtSearchCar.Size = new Size(200, 23);
+
+            btnSearchCars = new Button();
+            btnSearchCars.Location = new Point(270, 14);
+            btnSearchCars.Size = new Size(80, 25);
+            btnSearchCars.Text = "Найти";
+            btnSearchCars.Click += BtnSearchCars_Click;
+
+            Button btnClearSearch = new Button();
+            btnClearSearch.Location = new Point(360, 14);
+            btnClearSearch.Size = new Size(80, 25);
+            btnClearSearch.Text = "Сброс";
+            btnClearSearch.Click += (s, e) => {
+                txtSearchCar.Text = "";
+                LoadCars();
+            };
+
+            searchPanel.Controls.Add(lblSearch);
+            searchPanel.Controls.Add(txtSearchCar);
+            searchPanel.Controls.Add(btnSearchCars);
+            searchPanel.Controls
