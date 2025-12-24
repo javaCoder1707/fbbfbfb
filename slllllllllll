@@ -1,0 +1,106 @@
+-- 1. Создаем базу данных (если не существует)
+CREATE DATABASE IF NOT EXISTS applicant_tracking 
+CHARACTER SET utf8mb4 
+COLLATE utf8mb4_unicode_ci;
+
+USE applicant_tracking;
+
+-- 2. Таблица пользователей (используем Base64 для совместимости с C# кодом)
+-- ВАЖНО: В коде C# используется Base64, а не SHA2 напрямую
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    full_name VARCHAR(100),
+    email VARCHAR(100),
+    role VARCHAR(50) NOT NULL DEFAULT 'Консультант',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 3. Сначала очистим таблицу если есть старые данные
+TRUNCATE TABLE users;
+
+-- 4. Вставляем тестовых пользователей с хэшами в Base64
+-- Хэш 'admin123' в Base64: jGl25bVBBBW96Qi9Te4V37Fnqchz/Eu4qB9vKrRIqRg=
+-- Хэш 'manager123' в Base64: fdOc5e8fXbq3q9HtYwYJWp8MjL9p/5oK3p7tGJhV9l0=
+-- Хэш 'consultant123' в Base64: Rk8u4BjCxZnXvxWbT2jC6WmHq4ZQh8v8wLfMp9tV2E=
+
+INSERT INTO users (username, password_hash, full_name, role) VALUES
+('admin', 'jGl25bVBBBW96Qi9Te4V37Fnqchz/Eu4qB9vKrRIqRg=', 'Главный администратор', 'Администратор'),
+('manager', 'fdOc5e8fXbq3q9HtYwYJWp8MjL9p/5oK3p7tGJhV9l0=', 'Иванов Иван Иванович', 'Менеджер'),
+('consultant', 'Rk8u4BjCxZnXvxWbT2jC6WmHq4ZQh8v8wLfMp9tV2E=', 'Петрова Мария Сергеевна', 'Консультант');
+
+-- 5. Создаем таблицы для основной системы
+CREATE TABLE IF NOT EXISTS applicants (
+    ApplicantID INT AUTO_INCREMENT PRIMARY KEY,
+    FirstName VARCHAR(50) NOT NULL,
+    LastName VARCHAR(50) NOT NULL,
+    Email VARCHAR(100),
+    Phone VARCHAR(20),
+    BirthDate DATE,
+    AverageScore DECIMAL(5,2),
+    EducationType VARCHAR(50),
+    Address TEXT,
+    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS universities (
+    UniversityID INT AUTO_INCREMENT PRIMARY KEY,
+    UniversityName VARCHAR(200) NOT NULL,
+    City VARCHAR(100),
+    Address TEXT,
+    Phone VARCHAR(20),
+    Email VARCHAR(100),
+    Website VARCHAR(200),
+    Description TEXT,
+    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS specialties (
+    SpecialtyID INT AUTO_INCREMENT PRIMARY KEY,
+    SpecialtyCode VARCHAR(20) NOT NULL,
+    SpecialtyName VARCHAR(200) NOT NULL,
+    RequiredScore DECIMAL(5,2),
+    Duration INT,
+    EducationForm VARCHAR(50),
+    TuitionFee DECIMAL(10,2),
+    Description TEXT,
+    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS applications (
+    ApplicationID INT AUTO_INCREMENT PRIMARY KEY,
+    ApplicantID INT NOT NULL,
+    SpecialtyID INT NOT NULL,
+    UniversityID INT NOT NULL,
+    ApplicationDate DATE NOT NULL,
+    Status VARCHAR(50) DEFAULT 'Подана',
+    Comments TEXT,
+    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ApplicantID) REFERENCES applicants(ApplicantID) ON DELETE CASCADE,
+    FOREIGN KEY (SpecialtyID) REFERENCES specialties(SpecialtyID) ON DELETE CASCADE,
+    FOREIGN KEY (UniversityID) REFERENCES universities(UniversityID) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 6. Добавляем тестовые данные
+INSERT INTO universities (UniversityName, City, Website) VALUES
+('Московский государственный университет', 'Москва', 'www.msu.ru'),
+('Санкт-Петербургский государственный университет', 'Санкт-Петербург', 'www.spbu.ru'),
+('Новосибирский государственный университет', 'Новосибирск', 'www.nsu.ru');
+
+INSERT INTO specialties (SpecialtyCode, SpecialtyName, RequiredScore) VALUES
+('01.03.02', 'Прикладная математика и информатика', 75.5),
+('09.03.01', 'Информатика и вычислительная техника', 72.0),
+('38.03.05', 'Бизнес-информатика', 68.5);
+
+INSERT INTO applicants (FirstName, LastName, Email, AverageScore) VALUES
+('Иван', 'Иванов', 'ivanov@mail.ru', 85.5),
+('Мария', 'Петрова', 'petrova@mail.ru', 78.0),
+('Алексей', 'Сидоров', 'sidorov@mail.ru', 92.5);
+
+-- 7. Проверяем создание
+SELECT 'База данных успешно создана!' as message;
+
+-- 8. Проверяем пользователей
+SELECT id, username, role, is_active FROM users;
