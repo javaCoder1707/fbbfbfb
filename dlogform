@@ -1,0 +1,187 @@
+using System;
+using System.Drawing;
+using System.Windows.Forms;
+using MySql.Data.MySqlClient;
+
+namespace ApplicantTrackingSystem
+{
+    public partial class LoginForm : Form
+    {
+        private TextBox txtUsername;
+        private TextBox txtPassword;
+        private Button btnLogin;
+        private Button btnExit;
+        private Label lblTitle;
+        private Panel panelLogin;
+
+        public LoginForm()
+        {
+            InitializeComponent();
+            this.StartPosition = FormStartPosition.CenterScreen;
+        }
+
+        private void InitializeComponent()
+        {
+            // Настройки формы
+            this.Text = "Система учета абитуриентов - Вход";
+            this.Size = new Size(400, 400);
+            this.BackColor = Color.FromArgb(240, 240, 240);
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+
+            // Панель входа
+            panelLogin = new Panel();
+            panelLogin.Location = new Point(50, 30);
+            panelLogin.Size = new Size(300, 300);
+            panelLogin.BackColor = Color.White;
+            panelLogin.BorderStyle = BorderStyle.FixedSingle;
+
+            // Заголовок
+            lblTitle = new Label();
+            lblTitle.Text = "ВХОД В СИСТЕМУ";
+            lblTitle.Font = new Font("Segoe UI", 16, FontStyle.Bold);
+            lblTitle.ForeColor = Color.FromArgb(52, 73, 94);
+            lblTitle.Location = new Point(60, 30);
+            lblTitle.Size = new Size(200, 40);
+            lblTitle.TextAlign = ContentAlignment.MiddleCenter;
+
+            // Логин
+            Label lblUsername = new Label();
+            lblUsername.Text = "Логин:";
+            lblUsername.Location = new Point(40, 100);
+            lblUsername.Size = new Size(60, 25);
+            lblUsername.Font = new Font("Segoe UI", 10);
+
+            txtUsername = new TextBox();
+            txtUsername.Location = new Point(110, 97);
+            txtUsername.Size = new Size(150, 25);
+            txtUsername.Font = new Font("Segoe UI", 10);
+            txtUsername.Text = "admin"; // Для тестирования
+
+            // Пароль
+            Label lblPassword = new Label();
+            lblPassword.Text = "Пароль:";
+            lblPassword.Location = new Point(40, 140);
+            lblPassword.Size = new Size(60, 25);
+            lblPassword.Font = new Font("Segoe UI", 10);
+
+            txtPassword = new TextBox();
+            txtPassword.Location = new Point(110, 137);
+            txtPassword.Size = new Size(150, 25);
+            txtPassword.Font = new Font("Segoe UI", 10);
+            txtPassword.UseSystemPasswordChar = true;
+            txtPassword.Text = "admin123"; // Для тестирования
+
+            // Кнопка входа
+            btnLogin = new Button();
+            btnLogin.Text = "ВОЙТИ";
+            btnLogin.Location = new Point(80, 190);
+            btnLogin.Size = new Size(140, 40);
+            btnLogin.BackColor = Color.FromArgb(52, 152, 219);
+            btnLogin.ForeColor = Color.White;
+            btnLogin.Font = new Font("Segoe UI", 11, FontStyle.Bold);
+            btnLogin.Click += BtnLogin_Click;
+
+            // Кнопка выхода
+            btnExit = new Button();
+            btnExit.Text = "ВЫХОД";
+            btnExit.Location = new Point(150, 340);
+            btnExit.Size = new Size(100, 35);
+            btnExit.BackColor = Color.FromArgb(231, 76, 60);
+            btnExit.ForeColor = Color.White;
+            btnExit.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            btnExit.Click += BtnExit_Click;
+
+            // Добавление элементов на панель
+            panelLogin.Controls.Add(lblTitle);
+            panelLogin.Controls.Add(lblUsername);
+            panelLogin.Controls.Add(txtUsername);
+            panelLogin.Controls.Add(lblPassword);
+            panelLogin.Controls.Add(txtPassword);
+            panelLogin.Controls.Add(btnLogin);
+
+            // Добавление элементов на форму
+            this.Controls.Add(panelLogin);
+            this.Controls.Add(btnExit);
+
+            // Назначение кнопки Enter для входа
+            this.AcceptButton = btnLogin;
+        }
+
+        private void BtnLogin_Click(object sender, EventArgs e)
+        {
+            string username = txtUsername.Text.Trim();
+            string password = txtPassword.Text;
+
+            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+            {
+                MessageBox.Show("Введите логин и пароль", "Ошибка");
+                return;
+            }
+
+            try
+            {
+                DatabaseHelper dbHelper = new DatabaseHelper();
+                
+                // Проверка соединения с БД
+                if (!dbHelper.TestConnection())
+                {
+                    MessageBox.Show("Не удалось подключиться к базе данных.", "Ошибка соединения");
+                    return;
+                }
+
+                // Проверка пользователя
+                string query = @"
+                    SELECT id, username, full_name, role, is_active
+                    FROM users
+                    WHERE username = @Username 
+                    AND password = SHA2(@Password, 256)
+                    AND is_active = TRUE";
+                
+                MySqlParameter[] parameters = {
+                    new MySqlParameter("@Username", username),
+                    new MySqlParameter("@Password", password)
+                };
+
+                DataTable result = dbHelper.ExecuteQuery(query, parameters);
+
+                if (result.Rows.Count > 0)
+                {
+                    DataRow user = result.Rows[0];
+                    string fullName = user["full_name"].ToString();
+                    string role = user["role"].ToString();
+
+                    // Открытие главной формы
+                    MainForm mainForm = new MainForm(username, role, fullName);
+                    this.Hide();
+                    mainForm.ShowDialog();
+                    
+                    // После закрытия главной формы
+                    this.Show();
+                    txtPassword.Text = "";
+                    txtUsername.Text = "";
+                }
+                else
+                {
+                    MessageBox.Show("Неверный логин или пароль", "Ошибка входа");
+                    txtPassword.Text = "";
+                    txtPassword.Focus();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при входе: {ex.Message}", "Ошибка");
+            }
+        }
+
+        private void BtnExit_Click(object sender, EventArgs e)
+        {
+            if (MessageBox.Show("Вы уверены, что хотите выйти из программы?", "Подтверждение выхода", 
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            {
+                Application.Exit();
+            }
+        }
+    }
+}
