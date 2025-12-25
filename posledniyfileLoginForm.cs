@@ -1,0 +1,565 @@
+[file name]: LoginForm.cs
+[file content begin]
+﻿using MySql.Data.MySqlClient;
+using System;
+using System.Data;
+using System.Drawing;
+using System.Security.Cryptography;
+using System.Text;
+using System.Windows.Forms;
+
+namespace Kursovaya
+{
+    public partial class LoginForm : Form
+    {
+        private DatabaseHelper dbHelper;
+        private TabControl tabControl1;
+        private TabPage tabLogin;
+        private TabPage tabRegister;
+
+        private TextBox txtLoginUsername;
+        private TextBox txtLoginPassword;
+        private Button btnLogin;
+        private CheckBox chkShowPassword;
+        private Label lblLoginError;
+
+        private TextBox txtRegUsername;
+        private TextBox txtRegPassword;
+        private TextBox txtRegConfirmPassword;
+        private TextBox txtRegFullName;
+        private TextBox txtRegEmail;
+        private ComboBox cmbRegRole;
+        private Button btnRegister;
+        private Label lblRegisterError;
+
+        // Свойства для передачи данных в главную форму
+        public string CurrentUsername { get; private set; }
+        public string CurrentRole { get; private set; }
+        public string CurrentFullName { get; private set; }
+
+        public LoginForm()
+        {
+            InitializeComponent();
+            dbHelper = new DatabaseHelper();
+            InitializeDatabase();
+        }
+
+        private void InitializeComponent()
+        {
+            this.SuspendLayout();
+            this.Text = "Абитуриенты - Вход в систему";
+            this.Size = new Size(500, 450);
+            this.StartPosition = FormStartPosition.CenterScreen;
+            this.Font = new Font("Segoe UI", 10);
+            this.MaximizeBox = false;
+            this.FormBorderStyle = FormBorderStyle.FixedSingle;
+
+            CreateTabControl();
+            CreateLoginTab();
+            CreateRegisterTab();
+
+            this.Controls.Add(tabControl1);
+            this.ResumeLayout(false);
+        }
+
+        private void InitializeDatabase()
+        {
+            try
+            {
+                // Создаем таблицу пользователей если не существует
+                string createTableQuery = @"
+                    CREATE TABLE IF NOT EXISTS users (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        username VARCHAR(50) UNIQUE NOT NULL,
+                        password_hash VARCHAR(255) NOT NULL,
+                        full_name VARCHAR(100),
+                        email VARCHAR(100),
+                        role VARCHAR(50) NOT NULL DEFAULT 'Консультант',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        is_active BOOLEAN DEFAULT TRUE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+
+                dbHelper.ExecuteNonQuery(createTableQuery);
+
+                // Проверяем, есть ли администратор
+                string checkAdminQuery = "SELECT COUNT(*) FROM users WHERE username = 'admin'";
+                object result = dbHelper.ExecuteScalar(checkAdminQuery);
+
+                if (result != null && Convert.ToInt32(result) == 0)
+                {
+                    // Создаем администратора по умолчанию
+                    string defaultPassword = HashPassword("admin123");
+                    string createAdminQuery = @"
+                        INSERT INTO users (username, password_hash, full_name, role) 
+                        VALUES ('admin', @password, 'Главный администратор', 'Администратор')";
+
+                    MySqlParameter[] parameters = {
+                        new MySqlParameter("@password", defaultPassword)
+                    };
+
+                    dbHelper.ExecuteNonQuery(createAdminQuery, parameters);
+
+                    // Создаем тестовых пользователей
+                    CreateTestUsers();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка инициализации базы данных: {ex.Message}\n\nУбедитесь, что база данных 'applicant_tracking' существует.",
+                    "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void CreateTestUsers()
+        {
+            try
+            {
+                // Тестовый менеджер
+                string managerPass = HashPassword("manager123");
+                string managerQuery = @"
+                    INSERT INTO users (username, password_hash, full_name, role) 
+                    VALUES ('manager', @pass, 'Иванов Иван Иванович', 'Менеджер')
+                    ON DUPLICATE KEY UPDATE username = username";
+
+                MySqlParameter[] managerParams = {
+                    new MySqlParameter("@pass", managerPass)
+                };
+                dbHelper.ExecuteNonQuery(managerQuery, managerParams);
+
+                // Тестовый консультант
+                string consultantPass = HashPassword("consultant123");
+                string consultantQuery = @"
+                    INSERT INTO users (username, password_hash, full_name, role) 
+                    VALUES ('consultant', @pass, 'Петрова Мария Сергеевна', 'Консультант')
+                    ON DUPLICATE KEY UPDATE username = username";
+
+                MySqlParameter[] consultantParams = {
+                    new MySqlParameter("@pass", consultantPass)
+                };
+                dbHelper.ExecuteNonQuery(consultantQuery, consultantParams);
+            }
+            catch (Exception ex)
+            {
+                // Игнорируем ошибку создания тестовых пользователей
+                Console.WriteLine($"Ошибка создания тестовых пользователей: {ex.Message}");
+            }
+        }
+
+        private void CreateTabControl()
+        {
+            tabControl1 = new TabControl();
+            tabControl1.Location = new Point(15, 15);
+            tabControl1.Size = new Size(460, 380);
+            tabControl1.Font = new Font("Segoe UI", 10);
+
+            tabLogin = new TabPage("Вход");
+            tabRegister = new TabPage("Регистрация");
+
+            tabControl1.Controls.Add(tabLogin);
+            tabControl1.Controls.Add(tabRegister);
+        }
+
+        private void CreateLoginTab()
+        {
+            Panel loginPanel = new Panel();
+            loginPanel.Location = new Point(30, 30);
+            loginPanel.Size = new Size(400, 300);
+            loginPanel.BackColor = Color.White;
+
+            // Заголовок
+            Label lblTitle = new Label();
+            lblTitle.Text = "Вход в систему Абитуриенты";
+            lblTitle.Font = new Font("Segoe UI", 14, FontStyle.Bold);
+            lblTitle.Location = new Point(80, 20);
+            lblTitle.Size = new Size(250, 30);
+            lblTitle.TextAlign = ContentAlignment.MiddleCenter;
+
+            // Поле логина
+            Label lblUsername = new Label();
+            lblUsername.Text = "Имя пользователя:";
+            lblUsername.Location = new Point(50, 80);
+            lblUsername.Size = new Size(150, 25);
+
+            txtLoginUsername = new TextBox();
+            txtLoginUsername.Location = new Point(50, 110);
+            txtLoginUsername.Size = new Size(300, 30);
+            txtLoginUsername.Font = new Font("Segoe UI", 10);
+
+            // Поле пароля
+            Label lblPassword = new Label();
+            lblPassword.Text = "Пароль:";
+            lblPassword.Location = new Point(50, 150);
+            lblPassword.Size = new Size(150, 25);
+
+            txtLoginPassword = new TextBox();
+            txtLoginPassword.Location = new Point(50, 180);
+            txtLoginPassword.Size = new Size(300, 30);
+            txtLoginPassword.Font = new Font("Segoe UI", 10);
+            txtLoginPassword.PasswordChar = '•';
+
+            // Чекбокс показа пароля
+            chkShowPassword = new CheckBox();
+            chkShowPassword.Text = "Показать пароль";
+            chkShowPassword.Location = new Point(50, 215);
+            chkShowPassword.Size = new Size(150, 25);
+            chkShowPassword.CheckedChanged += ChkShowPassword_CheckedChanged;
+
+            // Кнопка входа
+            btnLogin = new Button();
+            btnLogin.Text = "Войти";
+            btnLogin.Location = new Point(50, 250);
+            btnLogin.Size = new Size(300, 40);
+            btnLogin.BackColor = Color.FromArgb(52, 152, 219);
+            btnLogin.ForeColor = Color.White;
+            btnLogin.Font = new Font("Segoe UI", 11, FontStyle.Bold);
+            btnLogin.Click += BtnLogin_Click;
+
+            // Метка ошибки
+            lblLoginError = new Label();
+            lblLoginError.Text = "";
+            lblLoginError.Location = new Point(50, 295);
+            lblLoginError.Size = new Size(300, 25);
+            lblLoginError.ForeColor = Color.Red;
+            lblLoginError.TextAlign = ContentAlignment.MiddleCenter;
+
+            // Подсказки для тестовых пользователей
+            Label lblHint = new Label();
+            lblHint.Text = "Тестовые пользователи:\nadmin / admin123 (админ)\nmanager / manager123 (менеджер)\nconsultant / consultant123 (консультант)";
+            lblHint.Location = new Point(50, 320);
+            lblHint.Size = new Size(300, 60);
+            lblHint.ForeColor = Color.Gray;
+            lblHint.Font = new Font("Segoe UI", 8);
+
+            loginPanel.Controls.Add(lblTitle);
+            loginPanel.Controls.Add(lblUsername);
+            loginPanel.Controls.Add(txtLoginUsername);
+            loginPanel.Controls.Add(lblPassword);
+            loginPanel.Controls.Add(txtLoginPassword);
+            loginPanel.Controls.Add(chkShowPassword);
+            loginPanel.Controls.Add(btnLogin);
+            loginPanel.Controls.Add(lblLoginError);
+            loginPanel.Controls.Add(lblHint);
+
+            tabLogin.Controls.Add(loginPanel);
+        }
+
+        private void CreateRegisterTab()
+        {
+            Panel registerPanel = new Panel();
+            registerPanel.Location = new Point(10, 10);
+            registerPanel.Size = new Size(440, 330);
+
+            // Заголовок
+            Label lblRegTitle = new Label();
+            lblRegTitle.Text = "Регистрация нового пользователя";
+            lblRegTitle.Font = new Font("Segoe UI", 14, FontStyle.Bold);
+            lblRegTitle.Location = new Point(70, 10);
+            lblRegTitle.Size = new Size(300, 30);
+            lblRegTitle.TextAlign = ContentAlignment.MiddleCenter;
+
+            // Поля для регистрации
+            int yPos = 50;
+            int spacing = 35;
+
+            // Имя пользователя
+            Label lblRegUser = new Label();
+            lblRegUser.Text = "Имя пользователя:*";
+            lblRegUser.Location = new Point(20, yPos);
+            lblRegUser.Size = new Size(180, 25);
+
+            txtRegUsername = new TextBox();
+            txtRegUsername.Location = new Point(200, yPos);
+            txtRegUsername.Size = new Size(220, 25);
+            yPos += spacing;
+
+            // Пароль
+            Label lblRegPass = new Label();
+            lblRegPass.Text = "Пароль:*";
+            lblRegPass.Location = new Point(20, yPos);
+            lblRegPass.Size = new Size(180, 25);
+
+            txtRegPassword = new TextBox();
+            txtRegPassword.Location = new Point(200, yPos);
+            txtRegPassword.Size = new Size(220, 25);
+            txtRegPassword.PasswordChar = '•';
+            yPos += spacing;
+
+            // Подтверждение пароля
+            Label lblRegConfirm = new Label();
+            lblRegConfirm.Text = "Подтвердите пароль:*";
+            lblRegConfirm.Location = new Point(20, yPos);
+            lblRegConfirm.Size = new Size(180, 25);
+
+            txtRegConfirmPassword = new TextBox();
+            txtRegConfirmPassword.Location = new Point(200, yPos);
+            txtRegConfirmPassword.Size = new Size(220, 25);
+            txtRegConfirmPassword.PasswordChar = '•';
+            yPos += spacing;
+
+            // ФИО
+            Label lblRegName = new Label();
+            lblRegName.Text = "ФИО:";
+            lblRegName.Location = new Point(20, yPos);
+            lblRegName.Size = new Size(180, 25);
+
+            txtRegFullName = new TextBox();
+            txtRegFullName.Location = new Point(200, yPos);
+            txtRegFullName.Size = new Size(220, 25);
+            yPos += spacing;
+
+            // Email
+            Label lblRegEmail = new Label();
+            lblRegEmail.Text = "Email:";
+            lblRegEmail.Location = new Point(20, yPos);
+            lblRegEmail.Size = new Size(180, 25);
+
+            txtRegEmail = new TextBox();
+            txtRegEmail.Location = new Point(200, yPos);
+            txtRegEmail.Size = new Size(220, 25);
+            yPos += spacing;
+
+            // Роль
+            Label lblRegRole = new Label();
+            lblRegRole.Text = "Роль:*";
+            lblRegRole.Location = new Point(20, yPos);
+            lblRegRole.Size = new Size(180, 25);
+
+            cmbRegRole = new ComboBox();
+            cmbRegRole.Location = new Point(200, yPos);
+            cmbRegRole.Size = new Size(220, 25);
+            cmbRegRole.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbRegRole.Items.AddRange(new string[] { "Консультант", "Менеджер", "Администратор" });
+            cmbRegRole.SelectedIndex = 0;
+            yPos += spacing;
+
+            // Кнопка регистрации
+            btnRegister = new Button();
+            btnRegister.Text = "Зарегистрироваться";
+            btnRegister.Location = new Point(20, yPos);
+            btnRegister.Size = new Size(400, 35);
+            btnRegister.BackColor = Color.FromArgb(46, 204, 113);
+            btnRegister.ForeColor = Color.White;
+            btnRegister.Font = new Font("Segoe UI", 10, FontStyle.Bold);
+            btnRegister.Click += BtnRegister_Click;
+
+            // Метка ошибки
+            lblRegisterError = new Label();
+            lblRegisterError.Text = "";
+            lblRegisterError.Location = new Point(20, yPos + 45);
+            lblRegisterError.Size = new Size(400, 25);
+            lblRegisterError.ForeColor = Color.Red;
+            lblRegisterError.TextAlign = ContentAlignment.MiddleCenter;
+
+            registerPanel.Controls.Add(lblRegTitle);
+            registerPanel.Controls.Add(lblRegUser);
+            registerPanel.Controls.Add(txtRegUsername);
+            registerPanel.Controls.Add(lblRegPass);
+            registerPanel.Controls.Add(txtRegPassword);
+            registerPanel.Controls.Add(lblRegConfirm);
+            registerPanel.Controls.Add(txtRegConfirmPassword);
+            registerPanel.Controls.Add(lblRegName);
+            registerPanel.Controls.Add(txtRegFullName);
+            registerPanel.Controls.Add(lblRegEmail);
+            registerPanel.Controls.Add(txtRegEmail);
+            registerPanel.Controls.Add(lblRegRole);
+            registerPanel.Controls.Add(cmbRegRole);
+            registerPanel.Controls.Add(btnRegister);
+            registerPanel.Controls.Add(lblRegisterError);
+
+            tabRegister.Controls.Add(registerPanel);
+        }
+
+        private string HashPassword(string password)
+        {
+            using (SHA256 sha256 = SHA256.Create())
+            {
+                byte[] bytes = Encoding.UTF8.GetBytes(password);
+                byte[] hash = sha256.ComputeHash(bytes);
+                return Convert.ToBase64String(hash);
+            }
+        }
+
+        private bool VerifyPassword(string password, string hash)
+        {
+            string inputHash = HashPassword(password);
+            return inputHash == hash;
+        }
+
+        private void ChkShowPassword_CheckedChanged(object sender, EventArgs e)
+        {
+            if (chkShowPassword.Checked)
+            {
+                txtLoginPassword.PasswordChar = '\0';
+                txtRegPassword.PasswordChar = '\0';
+                txtRegConfirmPassword.PasswordChar = '\0';
+            }
+            else
+            {
+                txtLoginPassword.PasswordChar = '•';
+                txtRegPassword.PasswordChar = '•';
+                txtRegConfirmPassword.PasswordChar = '•';
+            }
+        }
+
+        private void BtnLogin_Click(object sender, EventArgs e)
+        {
+            // УБИРАЕМ отладочное сообщение!
+            // MessageBox.Show("Кнопка 'Войти' нажата!", "Отладка");
+
+            string username = txtLoginUsername.Text.Trim();
+            string password = txtLoginPassword.Text;
+
+            if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+            {
+                lblLoginError.Text = "Заполните все поля!";
+                return;
+            }
+
+            try
+            {
+                // Используем параметры для безопасности
+                string query = "SELECT * FROM users WHERE username = @username AND is_active = TRUE";
+
+                MySqlParameter[] parameters = {
+                    new MySqlParameter("@username", username)
+                };
+
+                DataTable dt = dbHelper.ExecuteQuery(query, parameters);
+
+                if (dt.Rows.Count == 0)
+                {
+                    lblLoginError.Text = "Пользователь не найден или неактивен!";
+                    return;
+                }
+
+                string storedHash = dt.Rows[0]["password_hash"].ToString();
+
+                if (!VerifyPassword(password, storedHash))
+                {
+                    lblLoginError.Text = "Неверный пароль!";
+                    return;
+                }
+
+                // Успешный вход
+                CurrentUsername = username;
+                CurrentRole = dt.Rows[0]["role"].ToString();
+                CurrentFullName = dt.Rows[0]["full_name"].ToString();
+
+                // Устанавливаем DialogResult ДО закрытия формы
+                this.DialogResult = DialogResult.OK;
+                
+                // Закрываем форму
+                this.Close();
+            }
+            catch (Exception ex)
+            {
+                lblLoginError.Text = $"Ошибка входа: {ex.Message}";
+            }
+        }
+
+        private void BtnRegister_Click(object sender, EventArgs e)
+        {
+            // УБИРАЕМ отладочное сообщение!
+            // MessageBox.Show("Кнопка 'Зарегистрироваться' нажата!", "Отладка");
+
+            string username = txtRegUsername.Text.Trim();
+            string password = txtRegPassword.Text;
+            string confirmPassword = txtRegConfirmPassword.Text;
+            string fullName = txtRegFullName.Text.Trim();
+            string email = txtRegEmail.Text.Trim();
+            string role = cmbRegRole.SelectedItem?.ToString();
+
+            // Валидация
+            if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password) ||
+                string.IsNullOrEmpty(confirmPassword) || string.IsNullOrEmpty(role))
+            {
+                lblRegisterError.Text = "Заполните обязательные поля!";
+                return;
+            }
+
+            if (password != confirmPassword)
+            {
+                lblRegisterError.Text = "Пароли не совпадают!";
+                return;
+            }
+
+            if (password.Length < 6)
+            {
+                lblRegisterError.Text = "Пароль должен быть не менее 6 символов!";
+                return;
+            }
+
+            try
+            {
+                // Проверяем, существует ли пользователь (с параметрами)
+                string checkUserQuery = "SELECT COUNT(*) FROM users WHERE username = @username";
+                object result = dbHelper.ExecuteScalar(checkUserQuery,
+                    new MySqlParameter("@username", username));
+
+                if (Convert.ToInt32(result) > 0)
+                {
+                    lblRegisterError.Text = "Пользователь с таким именем уже существует!";
+                    return;
+                }
+
+                // Хэшируем пароль
+                string passwordHash = HashPassword(password);
+
+                // Создаем пользователя
+                string insertQuery = @"
+                    INSERT INTO users (username, password_hash, full_name, email, role) 
+                    VALUES (@username, @password, @fullname, @email, @role)";
+
+                MySqlParameter[] parameters = {
+                    new MySqlParameter("@username", username),
+                    new MySqlParameter("@password", passwordHash),
+                    new MySqlParameter("@fullname", string.IsNullOrEmpty(fullName) ? (object)DBNull.Value : fullName),
+                    new MySqlParameter("@email", string.IsNullOrEmpty(email) ? (object)DBNull.Value : email),
+                    new MySqlParameter("@role", role)
+                };
+
+                dbHelper.ExecuteNonQuery(insertQuery, parameters);
+
+                MessageBox.Show("Регистрация успешна! Теперь вы можете войти в систему.", "Успех",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                // Очищаем поля
+                ClearRegisterFields();
+
+                // Переключаемся на вкладку логина
+                tabControl1.SelectedTab = tabLogin;
+                txtLoginUsername.Text = username;
+                txtLoginPassword.Text = "";
+                lblLoginError.Text = "Регистрация успешна! Введите пароль.";
+            }
+            catch (Exception ex)
+            {
+                lblRegisterError.Text = $"Ошибка регистрации: {ex.Message}";
+            }
+        }
+
+        private void ClearRegisterFields()
+        {
+            txtRegUsername.Text = "";
+            txtRegPassword.Text = "";
+            txtRegConfirmPassword.Text = "";
+            txtRegFullName.Text = "";
+            txtRegEmail.Text = "";
+            cmbRegRole.SelectedIndex = 0;
+            lblRegisterError.Text = "";
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                if (dbHelper != null)
+                {
+                    dbHelper.Dispose();
+                }
+            }
+            base.Dispose(disposing);
+        }
+    }
+}
+[file content end]
