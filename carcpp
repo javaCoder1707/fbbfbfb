@@ -1,0 +1,421 @@
+#include "car.h"
+#include "CombustionCar.h"
+#include "ElectricCar.h"
+#include "HybridCar.h"
+#include <iostream>
+#include <sstream>
+#include <limits>
+#include <algorithm>
+#include <iomanip>
+
+Car::Car() : brand(""), model(""), complect(""), segment(""), body(""),
+            volume(0.0), year(0), power(0), price(0), dependence(0) {}
+
+Car::Car(std::string b, std::string m, std::string c, std::string s,
+        std::string bo, double vol, int y, int p, int pr) {
+    brand = b;
+    model = m;
+    complect = c;
+    segment = s;
+    body = bo;
+    volume = vol;
+    year = y;
+    power = p;
+    price = pr;
+    dependence = 0;
+}
+
+// Сеттеры
+void Car::setBrand(const std::string& b) { brand = b; }
+void Car::setModel(const std::string& m) { model = m; }
+void Car::setComplect(const std::string& c) { complect = c; }
+void Car::setSegment(const std::string& s) { segment = s; }
+void Car::setBody(const std::string& bo) { body = bo; }
+void Car::setVolume(double vol) { volume = vol; }
+void Car::setYear(int y) { year = y; }
+void Car::setPower(int p) { power = p; }
+void Car::setPrice(int pr) { price = pr; }
+
+// Геттеры
+std::string Car::getBrand() const { return brand; }
+std::string Car::getModel() const { return model; }
+std::string Car::getComplect() const { return complect; }
+std::string Car::getSegment() const { return segment; }
+std::string Car::getBody() const { return body; }
+double Car::getVolume() const { return volume; }
+int Car::getYear() const { return year; }
+int Car::getPower() const { return power; }
+int Car::getPrice() const { return price; }
+double Car::getDependence() const { return dependence; }
+
+// Базовая реализация toString
+std::string Car::toString() const {
+    std::ostringstream oss;
+    oss << "Brand: " << brand << "\n"
+        << "Model: " << model << "\n"
+        << "Complect: " << complect << "\n"
+        << "Segment: " << segment << "\n"
+        << "Body: " << body << "\n"
+        << "Engine Volume: " << std::fixed << std::setprecision(1) << volume << "L\n"
+        << "Year: " << year << "\n"
+        << "Power: " << power << " HP\n"
+        << "Price: " << price << " RUB\n"
+        << "Dependence: " << std::fixed << std::setprecision(6) << dependence << "\n";
+    return oss.str();
+}
+
+// Базовая реализация calculateDependence
+void Car::calculateDependence() {
+    if (price > 0) {
+        dependence = static_cast<double>(power) / price;
+    } else {
+        dependence = 0;
+    }
+}
+
+// Фабричный метод для создания автомобиля с ДВС
+std::shared_ptr<Car> Car::createCarFromInput() {
+    std::string brand, model, complect, segment, body, fuelType, transmission;
+    double volume = 0.0, fuelConsumption = 0.0;
+    int year = 0, power = 0, price = 0, emissionLevel = 0;
+
+    std::cout << "\n=== Enter Combustion Car Data ===" << std::endl;
+    std::cout << "Enter car brand: ";
+    std::getline(std::cin, brand);
+   
+    std::cout << "Enter car model: ";
+    std::getline(std::cin, model);
+
+    std::cout << "Enter car complect: ";
+    std::getline(std::cin, complect);
+
+    std::cout << "Enter car segment: ";
+    std::getline(std::cin, segment);
+    
+    std::cout << "Enter car body: ";
+    std::getline(std::cin, body);
+
+    while (true) {
+        std::cout << "Enter engine volume (in liters): ";
+        if (std::cin >> volume) break;
+        std::cout << "Invalid input. Please enter a number." << std::endl;
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+    
+    while (true) {
+        std::cout << "Enter year of manufacture: ";
+        if (std::cin >> year) break;
+        std::cout << "Invalid input. Please enter a number." << std::endl;
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+
+    while (true) {
+        std::cout << "Enter power (in HP): ";
+        if (std::cin >> power) break;
+        std::cout << "Invalid input. Please enter a number." << std::endl;
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+
+    while (true) {
+        std::cout << "Enter price (in RUB): ";
+        if (std::cin >> price) break;
+        std::cout << "Invalid input. Please enter a number." << std::endl;
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+    
+    while (true) {
+        std::cout << "Enter fuel consumption (l/100km): ";
+        if (std::cin >> fuelConsumption) break;
+        std::cout << "Invalid input. Please enter a number." << std::endl;
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+    
+    std::cin.ignore();
+    std::cout << "Enter fuel type (petrol/diesel/gas): ";
+    std::getline(std::cin, fuelType);
+    
+    while (true) {
+        std::cout << "Enter emission level (g CO2/km): ";
+        if (std::cin >> emissionLevel) break;
+        std::cout << "Invalid input. Please enter a number." << std::endl;
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+    
+    std::cin.ignore();
+    std::cout << "Enter transmission type (manual/automatic): ";
+    std::getline(std::cin, transmission);
+    
+    std::shared_ptr<Car> car = std::make_shared<CombustionCar>(
+        brand, model, complect, segment, body, volume, 
+        year, power, price, fuelConsumption, fuelType, 
+        emissionLevel, transmission
+    );
+    
+    car->calculateDependence();
+    return car;
+}
+
+// Фабричный метод для создания электромобиля
+std::shared_ptr<Car> Car::createElectricCarFromInput() {
+    std::string brand, model, complect, segment, body, chargingType;
+    int year = 0, power = 0, price = 0, range = 0;
+    double batteryCapacity = 0.0, chargingTime = 0.0;
+
+    std::cout << "\n=== Enter Electric Car Data ===" << std::endl;
+    std::cout << "Enter car brand: ";
+    std::getline(std::cin, brand);
+   
+    std::cout << "Enter car model: ";
+    std::getline(std::cin, model);
+
+    std::cout << "Enter car complect: ";
+    std::getline(std::cin, complect);
+
+    std::cout << "Enter car segment: ";
+    std::getline(std::cin, segment);
+    
+    std::cout << "Enter car body: ";
+    std::getline(std::cin, body);
+
+    while (true) {
+        std::cout << "Enter year of manufacture: ";
+        if (std::cin >> year) break;
+        std::cout << "Invalid input. Please enter a number." << std::endl;
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+
+    while (true) {
+        std::cout << "Enter power (in HP): ";
+        if (std::cin >> power) break;
+        std::cout << "Invalid input. Please enter a number." << std::endl;
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+
+    while (true) {
+        std::cout << "Enter price (in RUB): ";
+        if (std::cin >> price) break;
+        std::cout << "Invalid input. Please enter a number." << std::endl;
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+    
+    while (true) {
+        std::cout << "Enter battery capacity (kWh): ";
+        if (std::cin >> batteryCapacity) break;
+        std::cout << "Invalid input. Please enter a number." << std::endl;
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+    
+    while (true) {
+        std::cout << "Enter range (km): ";
+        if (std::cin >> range) break;
+        std::cout << "Invalid input. Please enter a number." << std::endl;
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+    
+    std::cin.ignore();
+    std::cout << "Enter charging type (AC/DC): ";
+    std::getline(std::cin, chargingType);
+    
+    while (true) {
+        std::cout << "Enter charging time to 80% (hours): ";
+        if (std::cin >> chargingTime) break;
+        std::cout << "Invalid input. Please enter a number." << std::endl;
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+    
+    std::cin.ignore();
+    std::shared_ptr<Car> car = std::make_shared<ElectricCar>(
+        brand, model, complect, segment, body, 0.0, 
+        year, power, price, batteryCapacity, range, 
+        chargingType, chargingTime
+    );
+    
+    car->calculateDependence();
+    return car;
+}
+
+// Фабричный метод для создания гибридного автомобиля
+std::shared_ptr<Car> Car::createHybridCarFromInput() {
+    std::string brand, model, complect, segment, body, driveMode;
+    double volume = 0.0, batteryCapacity = 0.0, fuelConsumption = 0.0;
+    int year = 0, power = 0, price = 0, electricRange = 0;
+
+    std::cout << "\n=== Enter Hybrid Car Data ===" << std::endl;
+    std::cout << "Enter car brand: ";
+    std::getline(std::cin, brand);
+   
+    std::cout << "Enter car model: ";
+    std::getline(std::cin, model);
+
+    std::cout << "Enter car complect: ";
+    std::getline(std::cin, complect);
+
+    std::cout << "Enter car segment: ";
+    std::getline(std::cin, segment);
+    
+    std::cout << "Enter car body: ";
+    std::getline(std::cin, body);
+
+    while (true) {
+        std::cout << "Enter engine volume (in liters): ";
+        if (std::cin >> volume) break;
+        std::cout << "Invalid input. Please enter a number." << std::endl;
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+    
+    while (true) {
+        std::cout << "Enter year of manufacture: ";
+        if (std::cin >> year) break;
+        std::cout << "Invalid input. Please enter a number." << std::endl;
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+
+    while (true) {
+        std::cout << "Enter power (in HP): ";
+        if (std::cin >> power) break;
+        std::cout << "Invalid input. Please enter a number." << std::endl;
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+
+    while (true) {
+        std::cout << "Enter price (in RUB): ";
+        if (std::cin >> price) break;
+        std::cout << "Invalid input. Please enter a number." << std::endl;
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+    
+    while (true) {
+        std::cout << "Enter battery capacity (kWh): ";
+        if (std::cin >> batteryCapacity) break;
+        std::cout << "Invalid input. Please enter a number." << std::endl;
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+    
+    while (true) {
+        std::cout << "Enter electric range (km): ";
+        if (std::cin >> electricRange) break;
+        std::cout << "Invalid input. Please enter a number." << std::endl;
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+    
+    while (true) {
+        std::cout << "Enter fuel consumption (l/100km): ";
+        if (std::cin >> fuelConsumption) break;
+        std::cout << "Invalid input. Please enter a number." << std::endl;
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+    
+    std::cin.ignore();
+    std::cout << "Enter drive mode (parallel/series): ";
+    std::getline(std::cin, driveMode);
+    
+    std::shared_ptr<Car> car = std::make_shared<HybridCar>(
+        brand, model, complect, segment, body, volume, 
+        year, power, price, batteryCapacity, electricRange,
+        fuelConsumption, driveMode
+    );
+    
+    car->calculateDependence();
+    return car;
+}
+
+void Car::theMostPowerToPriceDepended(std::vector<std::shared_ptr<Car>>& cars) {
+    if (cars.empty()) {
+        std::cout << "No cars in the container!" << std::endl;
+        return;
+    }
+    
+    double maxDependence = 0;
+    std::vector<std::shared_ptr<Car>> bestCars;
+
+    for (auto& car : cars) {
+        car->calculateDependence();
+        if (car->getDependence() > maxDependence) {
+            maxDependence = car->getDependence();
+            bestCars.clear();
+            bestCars.push_back(car);
+        } else if (car->getDependence() == maxDependence) {
+            bestCars.push_back(car);
+        }
+    }
+
+    std::cout << "=== Cars with best Power/Price ratio ===" << std::endl;
+    std::cout << "Max dependence: " << std::fixed << std::setprecision(6) << maxDependence << std::endl;
+    
+    for (size_t i = 0; i < bestCars.size(); ++i) {
+        std::cout << "Car " << (i + 1) << " [" << bestCars[i]->getType() << "]:\n" 
+                  << bestCars[i]->toString() << std::endl;
+    }
+}
+
+void Car::sortCarsByPrice(std::vector<std::shared_ptr<Car>>& cars) {
+    std::sort(cars.begin(), cars.end(), 
+        [](const std::shared_ptr<Car>& a, const std::shared_ptr<Car>& b) {
+            return a->getPrice() < b->getPrice();
+        });
+}
+
+void Car::displayByType(std::vector<std::shared_ptr<Car>>& cars, const std::string& type) {
+    int count = 0;
+    std::cout << "\n=== Cars of type: " << type << " ===" << std::endl;
+    
+    for (size_t i = 0; i < cars.size(); ++i) {
+        if (cars[i]->getType() == type) {
+            std::cout << "Car " << (++count) << ":\n" 
+                      << cars[i]->toString() << std::endl;
+        }
+    }
+    
+    if (count == 0) {
+        std::cout << "No cars of type '" << type << "' found." << std::endl;
+    }
+}
+
+bool Car::operator==(const Car& other) const {
+    return brand == other.brand &&
+           model == other.model &&
+           complect == other.complect &&
+           segment == other.segment &&
+           body == other.body &&
+           volume == other.volume &&
+           year == other.year &&
+           power == other.power &&
+           price == other.price;
+}
+
+std::ostream& operator<<(std::ostream& os, const Car& car) {
+    os << car.toString();
+    return os;
+}
+
+std::ofstream& operator<<(std::ofstream& ofs, const Car& car) {
+    ofs << car.getBrand() << ","
+        << car.getModel() << ","
+        << car.getComplect() << ","
+        << car.getSegment() << ","
+        << car.getBody() << ","
+        << std::fixed << std::setprecision(1) << car.getVolume() << ","
+        << car.getYear() << ","
+        << car.getPower() << ","
+        << car.getPrice();
+    return ofs;
+}
