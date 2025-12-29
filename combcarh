@@ -1,0 +1,43 @@
+// CombustionCar.h 的正确内容
+#ifndef COMBUSTIONCAR_H
+#define COMBUSTIONCAR_H
+
+#include "car.h"
+
+class CombustionCar : public Car {
+private:
+    double fuelConsumption;     // расход топлива в л/100км
+    std::string fuelType;       // тип топлива (petrol/diesel/gas)
+    int emissionLevel;          // уровень выбросов в г CO2/км
+    std::string transmission;   // тип трансмиссии (manual/automatic)
+
+public:
+    // Конструкторы
+    CombustionCar();
+    CombustionCar(std::string b, std::string m, std::string c, std::string s,
+                 std::string bo, double vol, int y, int p, int pr,
+                 double fuelCons, std::string fuelT, int emissions, std::string trans);
+    
+    // Сеттеры
+    void setFuelConsumption(double fuelCons);
+    void setFuelType(const std::string& fuelT);
+    void setEmissionLevel(int emissions);
+    void setTransmission(const std::string& trans);
+    
+    // Геттеры
+    double getFuelConsumption() const;
+    std::string getFuelType() const;
+    int getEmissionLevel() const;
+    std::string getTransmission() const;
+    
+    // Переопределенные методы
+    virtual std::string toString() const override;
+    virtual void calculateDependence() override;
+    virtual std::string getType() const override { return "Combustion"; }
+    
+    // Операторы
+    friend std::ostream& operator<<(std::ostream& os, const CombustionCar& car);
+    friend std::ofstream& operator<<(std::ofstream& ofs, const CombustionCar& car);
+};
+
+#endif
